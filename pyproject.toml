@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "certstream>=1.12",
+    "cryptography>=46.0.5",
     "datasets>=4.5.0",
     "elasticsearch>=8.13.4,<9",
     "ipykernel>=7.2.0",
