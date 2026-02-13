@@ -51,7 +51,7 @@ st.markdown("""
     align-items: center;
     justify-content: space-between;
     padding: 0 0 1.5rem 0;
-    border-bottom: 1px solid #1E293B;
+    border-bottom: 1px solid #1A1A1A;
     margin-bottom: 1.5rem;
   }
   .qs-logo {
@@ -60,7 +60,7 @@ st.markdown("""
     letter-spacing: -0.5px;
     color: #F8FAFC;
   }
-  .qs-logo span { color: #00D4FF; }
+  .qs-logo span { color: #FF6B00; }
   .qs-tagline {
     font-size: 0.75rem;
     color: #64748B;
@@ -74,16 +74,16 @@ st.markdown("""
     border-radius: 20px;
     font-weight: 500;
   }
-  .qs-conn-ok   { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .qs-conn-ok   { background: #052e16; color: #4ADE80; border: 1px solid #166534; }
   .qs-conn-fail { background: #2d0f0f; color: #f87171; border: 1px solid #7f1d1d; }
 
   /* ── Tabs ── */
   .stTabs [data-baseweb="tab-list"] {
     gap: 0;
-    background: #111827;
+    background: #111111;
     border-radius: 10px;
     padding: 4px;
-    border: 1px solid #1E293B;
+    border: 1px solid #1A1A1A;
   }
   .stTabs [data-baseweb="tab"] {
     border-radius: 7px;
@@ -95,14 +95,14 @@ st.markdown("""
     border: none;
   }
   .stTabs [aria-selected="true"] {
-    background: #1E293B !important;
+    background: #1A1A1A !important;
     color: #F1F5F9 !important;
   }
 
   /* ── Metric cards ── */
   .metric-card {
-    background: #111827;
-    border: 1px solid #1E293B;
+    background: #111111;
+    border: 1px solid #1A1A1A;
     border-radius: 12px;
     padding: 1.2rem 1.4rem;
     height: 100%;
@@ -132,7 +132,7 @@ st.markdown("""
     justify-content: space-between;
     align-items: center;
     padding: 5px 0;
-    border-bottom: 1px solid #1E293B;
+    border-bottom: 1px solid #1A1A1A;
     font-size: 0.8rem;
   }
   .metric-row:last-child { border-bottom: none; }
@@ -158,17 +158,17 @@ st.markdown("""
     letter-spacing: 0.05em;
     margin-bottom: 0.8rem;
   }
-  .pill-ok   { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .pill-ok   { background: #052e16; color: #4ADE80; border: 1px solid #166534; }
   .pill-warn { background: #1c1400; color: #fbbf24; border: 1px solid #854d0e; }
   .pill-crit { background: #2d0f0f; color: #f87171; border: 1px solid #7f1d1d; }
 
   /* ── Inject scenario cards ── */
   .scenario-card {
-    background: #111827;
-    border: 1px solid #1E293B;
+    background: #111111;
+    border: 1px solid #1A1A1A;
     border-radius: 12px;
     padding: 1.4rem;
-    height: 100%;
+    min-height: 220px;
   }
   .scenario-title {
     font-size: 1rem;
@@ -179,7 +179,7 @@ st.markdown("""
   .scenario-service {
     font-size: 0.72rem;
     font-family: 'JetBrains Mono', monospace;
-    color: #00D4FF;
+    color: #FF6B00;
     margin-bottom: 0.8rem;
   }
   .scenario-desc {
@@ -195,7 +195,7 @@ st.markdown("""
     padding: 2px 8px;
     border-radius: 4px;
     margin-right: 4px;
-    background: #1E293B;
+    background: #1A1A1A;
     color: #94A3B8;
     font-family: 'JetBrains Mono', monospace;
   }
@@ -211,7 +211,7 @@ st.markdown("""
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.76rem;
   }
-  .log-line:hover { background: #1E293B; }
+  .log-line:hover { background: #1A1A1A; }
   .log-ts    { color: #475569; flex-shrink: 0; }
   .log-level { font-weight: 600; flex-shrink: 0; min-width: 60px; }
   .log-msg   { color: #CBD5E1; flex: 1; }
@@ -229,7 +229,7 @@ st.markdown("""
     color: #475569;
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid #1E293B;
+    border-bottom: 1px solid #1A1A1A;
   }
 
   /* ── Index table ── */
@@ -240,8 +240,8 @@ st.markdown("""
     padding: 8px 12px;
     border-radius: 8px;
     margin-bottom: 4px;
-    background: #111827;
-    border: 1px solid #1E293B;
+    background: #111111;
+    border: 1px solid #1A1A1A;
     font-size: 0.8rem;
   }
   .idx-name {
@@ -249,7 +249,7 @@ st.markdown("""
     color: #E2E8F0;
   }
   .idx-count { color: #64748B; font-size: 0.75rem; }
-  .idx-qs    { border-left: 3px solid #00D4FF; }
+  .idx-qs    { border-left: 3px solid #FF6B00; }
   .idx-other { border-left: 3px solid #374151; }
 
   /* ── Streamlit button overrides ── */
@@ -261,17 +261,17 @@ st.markdown("""
     border: 1px solid transparent;
   }
   .stButton > button[kind="primary"] {
-    background: #00D4FF;
-    color: #0A0E1A;
-    border-color: #00D4FF;
+    background: #FF6B00;
+    color: #0A0A0A;
+    border-color: #FF6B00;
   }
   .stButton > button[kind="primary"]:hover {
-    background: #38E2FF;
-    border-color: #38E2FF;
+    background: #FF8C33;
+    border-color: #FF8C33;
   }
 
   /* Progress bar */
-  .stProgress > div > div { background: #00D4FF; }
+  .stProgress > div > div { background: #FF6B00; }
 
   /* Alerts */
   .stSuccess { background: #052e16; border: 1px solid #166534; border-radius: 8px; }
@@ -559,8 +559,7 @@ with tab_setup:
         """, unsafe_allow_html=True)
 
     with col_btn:
-        run = st.button("Run Setup", type="primary", use_container_width=True,
-                        disabled=len(missing) == 0)
+        run = st.button("Run Setup", type="primary", use_container_width=True)
 
     # Index status grid
     st.markdown('<div style="height:1rem"></div>', unsafe_allow_html=True)
@@ -702,8 +701,9 @@ with tab_inject:
               <div class="scenario-title">{s["icon"]} {s["title"]}</div>
               <div class="scenario-service">{s["service"]} · {s["region"]}</div>
               <div class="scenario-desc">{s["desc"]}</div>
-              <div style="margin-bottom:1rem">{tags_html}</div>
+              <div>{tags_html}</div>
             </div>
+            <div style="height:0.6rem"></div>
             """, unsafe_allow_html=True)
             if st.button(f"Inject {s['title']}", key=s["key"], type="primary", use_container_width=True):
                 with st.spinner(f"Injecting {s['title']}…"):
@@ -785,7 +785,7 @@ with tab_health:
                   <span class="log-level level-{level}">{level}</span>
                   <span class="log-msg">{msg}</span>
                 </div>"""
-            st.markdown(f'<div style="background:#0D1117;border:1px solid #1E293B;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
+            st.markdown(f'<div style="background:#0D0D0D;border:1px solid #1A1A1A;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
                         unsafe_allow_html=True)
         else:
             st.markdown('<p style="color:#475569;font-size:0.85rem">No logs in the last 30 minutes.</p>',
@@ -840,10 +840,17 @@ with tab_cleanup:
         else:
             st.markdown('<p style="color:#475569;font-size:0.82rem">None — cluster is clean.</p>', unsafe_allow_html=True)
 
-    if other:
-        st.markdown('<div style="height:1rem"></div>', unsafe_allow_html=True)
-        st.warning(f"{len(other)} non-QuantumState {'index' if len(other)==1 else 'indices'} found.")
-        if st.button(f"Delete {len(other)} other {'index' if len(other)==1 else 'indices'}", type="primary"):
+    st.markdown('<div style="height:1.2rem"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Actions</div>', unsafe_allow_html=True)
+
+    btn_col1, btn_col2, btn_col3 = st.columns(3)
+
+    with btn_col1:
+        st.markdown('<p style="color:#94A3B8;font-size:0.8rem;margin-bottom:0.6rem">Remove all non-QuantumState indices.</p>', unsafe_allow_html=True)
+        if st.button(
+            f"Delete {len(other)} other {'index' if len(other)==1 else 'indices'}" if other else "No other indices",
+            type="primary", use_container_width=True, disabled=len(other)==0, key="del_other"
+        ):
             deleted, failed = [], []
             for name in other:
                 try:
@@ -852,5 +859,35 @@ with tab_cleanup:
                 except Exception as e:
                     failed.append(f"{name} ({e})")
             if deleted: st.success(f"Deleted: {', '.join(deleted)}")
+            if failed:  st.error(f"Failed: {', '.join(failed)}")
+            st.rerun()
+
+    with btn_col2:
+        st.markdown('<p style="color:#94A3B8;font-size:0.8rem;margin-bottom:0.6rem">Wipe QuantumState data only — keeps indices, clears all documents.</p>', unsafe_allow_html=True)
+        if st.button("Clear QuantumState Data", use_container_width=True,
+                     disabled=len(qs_found)==0, key="clear_qs"):
+            cleared, failed = [], []
+            for name in qs_found:
+                try:
+                    es.delete_by_query(index=name, body={"query": {"match_all": {}}}, refresh=True)
+                    cleared.append(name.replace("-quantumstate", ""))
+                except Exception as e:
+                    failed.append(f"{name} ({e})")
+            if cleared: st.success(f"Cleared: {', '.join(cleared)}")
+            if failed:  st.error(f"Failed: {', '.join(failed)}")
+            st.rerun()
+
+    with btn_col3:
+        st.markdown('<p style="color:#94A3B8;font-size:0.8rem;margin-bottom:0.6rem">Full reset — deletes QuantumState indices entirely. Re-run Setup after.</p>', unsafe_allow_html=True)
+        if st.button("Delete QuantumState Indices", use_container_width=True,
+                     disabled=len(qs_found)==0, key="del_qs"):
+            deleted, failed = [], []
+            for name in qs_found:
+                try:
+                    es.indices.delete(index=name)
+                    deleted.append(name.replace("-quantumstate", ""))
+                except Exception as e:
+                    failed.append(f"{name} ({e})")
+            if deleted: st.success(f"Deleted indices: {', '.join(deleted)} — run Setup to recreate.")
             if failed:  st.error(f"Failed: {', '.join(failed)}")
             st.rerun()
