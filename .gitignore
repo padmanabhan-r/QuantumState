@@ -13,8 +13,8 @@ wheels/
 # quantumstate_implementation_plan.md
 ElasticSearch_Python_Course-main/
 agent-builder-docs/
-data/
+sample-data/
 notebooks/
-plans/
+implementation/
 sample-project/
 notes/
