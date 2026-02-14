@@ -17,7 +17,7 @@ const Footer = () => {
         </span>
 
         <div className="flex gap-4">
-          <a href="#" className="hover:text-foreground transition-colors">Simulation Control</a>
+          <Link to="/sim" className="hover:text-foreground transition-colors">Simulation Control</Link>
           <a href="https://github.com/padmanabhan-r/QuantumState" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
           <Link to="/console" className="hover:text-foreground transition-colors">Console</Link>
         </div>
