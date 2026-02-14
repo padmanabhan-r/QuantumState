@@ -63,11 +63,11 @@ export default function ChatPanel() {
   const active = agentCfg(agentId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 h-full">
 
       {/* Agent selector */}
       <div
-        className="rounded-xl p-5 border border-border"
+        className="rounded-xl p-4 border border-border shrink-0"
         style={{ background: "linear-gradient(135deg, hsl(222 47% 4%), hsl(222 47% 6%))" }}
       >
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -117,7 +117,7 @@ export default function ChatPanel() {
 
       {/* Chat window */}
       <div
-        className="relative rounded-xl border border-border overflow-hidden"
+        className="relative flex flex-col flex-1 rounded-xl border border-border overflow-hidden"
         style={{ background: "hsl(222 47% 2%)" }}
       >
         {/* Chrome bar */}
@@ -138,7 +138,7 @@ export default function ChatPanel() {
         </div>
 
         {/* Messages */}
-        <div className="min-h-[320px] max-h-[420px] overflow-y-auto p-5 flex flex-col gap-4 font-mono text-xs">
+        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 font-mono text-xs">
           {messages.length === 0 && !loading ? (
             <div className="flex flex-col items-center justify-center h-full py-16 gap-3">
               <div

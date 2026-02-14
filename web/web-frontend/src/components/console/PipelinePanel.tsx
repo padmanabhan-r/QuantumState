@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Loader2, CheckCircle2, Circle } from "lucide-react";
+import { Play, Loader2, CheckCircle2, Circle, Square, RefreshCw, Timer } from "lucide-react";
 
 interface Block { agent: string; event: string; text: string; }
 
@@ -20,8 +20,25 @@ export default function PipelinePanel() {
   const [currentAgent, setCurrentAgent] = useState<string | null>(null);
   const [doneAgents, setDoneAgents]     = useState<string[]>([]);
   const [done, setDone]                 = useState(false);
+  const [doneMsg, setDoneMsg]           = useState("");
   const [error, setError]               = useState<string | null>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
+
+  // Auto-run state
+  const [mode, setMode]           = useState<"manual" | "auto">("manual");
+  const [interval, setInterval_]  = useState(60);
+  const [autoActive, setAutoActive] = useState(false);
+  const [countdown, setCountdown]  = useState(0);
+
+  const outputRef    = useRef<HTMLDivElement>(null);
+  const autoTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const runningRef   = useRef(false);
+
+  // Keep runningRef in sync
+  useEffect(() => { runningRef.current = running; }, [running]);
+
+  // Cleanup on unmount
+  useEffect(() => () => { stopAuto(); }, []);
 
   function appendBlock(b: Block) {
     setBlocks((prev) => {
@@ -40,7 +57,8 @@ export default function PipelinePanel() {
   }
 
   async function runPipeline() {
-    setRunning(true); setDone(false); setError(null);
+    if (runningRef.current) return;
+    setRunning(true); setDone(false); setDoneMsg(""); setError(null);
     setBlocks([]); setCurrentAgent(null); setDoneAgents([]);
 
     try {
@@ -78,7 +96,7 @@ export default function PipelinePanel() {
               } else if (evtName === "agent_complete") {
                 setDoneAgents((d) => [...d, agent]);
               } else if (evtName === "pipeline_complete") {
-                setDone(true); setCurrentAgent(null);
+                setDone(true); setCurrentAgent(null); setDoneMsg(text);
               } else if (evtName === "error") {
                 setError(text);
               }
@@ -93,21 +111,83 @@ export default function PipelinePanel() {
     }
   }
 
+  function scheduleNext(secs: number) {
+    setCountdown(secs);
+    countdownRef.current = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) { clearInterval(countdownRef.current!); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    autoTimer.current = setTimeout(async () => {
+      await runPipeline();
+      // schedule next only if still active
+      setAutoActive((active) => {
+        if (active) scheduleNext(secs);
+        return active;
+      });
+    }, secs * 1000);
+  }
+
+  function startAuto() {
+    setAutoActive(true);
+    runPipeline().then(() => {
+      setAutoActive((active) => {
+        if (active) scheduleNext(interval);
+        return active;
+      });
+    });
+  }
+
+  function stopAuto() {
+    setAutoActive(false);
+    if (autoTimer.current)    { clearTimeout(autoTimer.current);   autoTimer.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+    setCountdown(0);
+  }
+
   const cfg = currentAgent ? agentCfg(currentAgent) : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Agent progress tracker */}
+    <div className="flex flex-col gap-4 h-full">
+
+      {/* Controls card */}
       <div
-        className="rounded-xl p-5 border border-border"
+        className="rounded-xl p-4 border border-border shrink-0"
         style={{ background: "linear-gradient(135deg, hsl(222 47% 4%), hsl(222 47% 6%))" }}
       >
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* Mode toggle */}
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={() => { stopAuto(); setMode("manual"); }}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            style={mode === "manual" ? {
+              background: "color-mix(in srgb, hsl(221 83% 53%) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, hsl(221 83% 53%) 25%, transparent)",
+              color: "hsl(221 83% 53%)",
+            } : { border: "1px solid hsl(var(--border))", color: "hsl(var(--muted-foreground))" }}
+          >
+            <Play className="h-3 w-3" /> Manual
+          </button>
+          <button
+            onClick={() => { stopAuto(); setMode("auto"); }}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            style={mode === "auto" ? {
+              background: "color-mix(in srgb, hsl(38 92% 50%) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, hsl(38 92% 50%) 25%, transparent)",
+              color: "hsl(38 92% 50%)",
+            } : { border: "1px solid hsl(var(--border))", color: "hsl(var(--muted-foreground))" }}
+          >
+            <RefreshCw className="h-3 w-3" /> Auto
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {/* Agent steps */}
           <div className="flex items-center gap-2 flex-wrap">
             {AGENTS.map((a, i) => {
-              const isDone    = doneAgents.includes(a.id);
-              const isActive  = currentAgent === a.id;
+              const isDone   = doneAgents.includes(a.id);
+              const isActive = currentAgent === a.id;
               return (
                 <div key={a.id} className="flex items-center gap-2">
                   <div
@@ -136,40 +216,114 @@ export default function PipelinePanel() {
                       <span className="text-[10px] text-muted-foreground">{a.role}</span>
                     </div>
                   </div>
-                  {i < AGENTS.length - 1 && (
-                    <div className="h-px w-4 bg-border hidden sm:block" />
-                  )}
+                  {i < AGENTS.length - 1 && <div className="h-px w-4 bg-border hidden sm:block" />}
                 </div>
               );
             })}
           </div>
 
-          {/* Run button */}
-          <Button
-            onClick={runPipeline}
-            disabled={running}
-            className="rounded-full gap-2 shrink-0"
-            style={!running ? {
-              background: "linear-gradient(135deg, hsl(221 83% 53%), hsl(188 94% 43%))",
-              boxShadow: "0 0 20px hsl(221 83% 53% / 0.3)",
-            } : undefined}
-          >
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {running ? "Running…" : "Run Pipeline"}
-          </Button>
+          {/* Action area */}
+          <div className="flex items-center gap-2 shrink-0">
+            {mode === "auto" && (
+              <div className="flex items-center gap-1.5">
+                <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+                <div
+                  className="flex items-center rounded-lg overflow-hidden"
+                  style={{ border: "1px solid hsl(var(--border))", background: "hsl(222 47% 4%)" }}
+                >
+                  <button
+                    onClick={() => !autoActive && setInterval_((v) => Math.max(10, v - 10))}
+                    disabled={autoActive}
+                    className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center text-xs font-mono text-foreground select-none py-1">
+                    {interval}
+                  </span>
+                  <button
+                    onClick={() => !autoActive && setInterval_((v) => Math.min(3600, v + 10))}
+                    disabled={autoActive}
+                    className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                  >
+                    +
+                  </button>
+                </div>
+                <span className="text-xs text-muted-foreground">sec</span>
+              </div>
+            )}
+
+            {mode === "manual" ? (
+              <Button
+                onClick={runPipeline}
+                disabled={running}
+                className="rounded-full gap-2"
+                style={!running ? {
+                  background: "linear-gradient(135deg, hsl(221 83% 53%), hsl(188 94% 43%))",
+                  boxShadow: "0 0 20px hsl(221 83% 53% / 0.3)",
+                } : undefined}
+              >
+                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {running ? "Running…" : "Run Pipeline"}
+              </Button>
+            ) : autoActive ? (
+              <Button
+                onClick={stopAuto}
+                className="rounded-full gap-2"
+                style={{ background: "linear-gradient(135deg, hsl(0 84% 60%), hsl(38 92% 50%))", boxShadow: "0 0 20px hsl(0 84% 60% / 0.3)" }}
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+                Stop
+                {countdown > 0 && !running && (
+                  <span className="font-mono text-[10px] opacity-75">({countdown}s)</span>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={startAuto}
+                className="rounded-full gap-2"
+                style={{
+                  background: "linear-gradient(135deg, hsl(38 92% 50%), hsl(160 84% 39%))",
+                  boxShadow: "0 0 20px hsl(38 92% 50% / 0.3)",
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Start Auto
+              </Button>
+            )}
+          </div>
         </div>
 
-        {done && (
-          <div className="mt-3 flex items-center gap-2 text-xs font-medium"
-            style={{ color: "hsl(160 84% 39%)" }}>
-            <CheckCircle2 className="h-4 w-4" />
-            Pipeline complete — incident report written to Elasticsearch
+        {/* Status row */}
+        {(done || autoActive) && (
+          <div className="mt-3 flex items-center gap-3 text-xs font-medium flex-wrap">
+            {done && (
+              <span
+                className="flex items-center gap-1.5"
+                style={{ color: doneMsg.toLowerCase().includes("no anomaly") ? "hsl(188 94% 43%)" : "hsl(160 84% 39%)" }}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {doneMsg || "Pipeline complete"}
+              </span>
+            )}
+            {autoActive && countdown > 0 && !running && (
+              <span className="flex items-center gap-1.5 font-mono" style={{ color: "hsl(38 92% 50%)" }}>
+                <Timer className="h-3.5 w-3.5" />
+                Next run in {countdown}s
+              </span>
+            )}
+            {autoActive && running && (
+              <span className="flex items-center gap-1.5" style={{ color: "hsl(188 94% 43%)" }}>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Auto-running…
+              </span>
+            )}
           </div>
         )}
       </div>
 
       {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive shrink-0">
           {error}
         </div>
       )}
@@ -177,11 +331,11 @@ export default function PipelinePanel() {
       {/* Terminal output */}
       <div
         ref={outputRef}
-        className="relative rounded-xl border border-border overflow-hidden"
+        className="relative flex flex-col flex-1 rounded-xl border border-border overflow-hidden"
         style={{ background: "hsl(222 47% 2%)" }}
       >
         {/* Terminal chrome bar */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-card/50">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-card/50 shrink-0">
           <span className="h-2.5 w-2.5 rounded-full bg-destructive/60" />
           <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--warning)/0.6)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--success)/0.6)]" />
@@ -192,9 +346,15 @@ export default function PipelinePanel() {
               {cfg.label} active
             </span>
           )}
+          {autoActive && !running && countdown > 0 && (
+            <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px]" style={{ color: "hsl(38 92% 50%)" }}>
+              <Timer className="h-3 w-3" />
+              next in {countdown}s
+            </span>
+          )}
         </div>
 
-        <div className="min-h-[360px] max-h-[480px] overflow-y-auto p-5 font-mono text-xs">
+        <div className="flex-1 overflow-y-auto p-5 font-mono text-xs">
           {blocks.length === 0 && !running ? (
             <p className="py-16 text-center text-muted-foreground/50">
               $ awaiting pipeline execution…
@@ -206,9 +366,7 @@ export default function PipelinePanel() {
                 if (b.event === "agent_start") {
                   return (
                     <div key={i} className={`${i > 0 ? "mt-4 pt-4 border-t border-border/50" : ""}`}>
-                      <span className="text-sm font-bold" style={{ color: a.accent }}>
-                        ▸ {b.text}
-                      </span>
+                      <span className="text-sm font-bold" style={{ color: a.accent }}>▸ {b.text}</span>
                       <span className="text-muted-foreground/50 ml-2 text-[10px]">— {a.role}</span>
                     </div>
                   );

@@ -92,6 +92,36 @@ def _pipeline_generator():
         yield _event("pipeline_complete", {"text": "No anomaly detected — system is healthy. Pipeline stopped."})
         return
 
+    # Dedup: skip if an incident for the same service was already written in the last 30 min
+    import re as _re
+    from elastic import get_es as _get_es
+    _svc_match = _re.search(r"affected[_\s]?service[:\*\s]+([a-zA-Z0-9_-]+)", cassandra_output, _re.IGNORECASE)
+    _detected_service = _svc_match.group(1).strip() if _svc_match else ""
+    if _detected_service:
+        try:
+            _es = _get_es()
+            _recent = _es.search(index="incidents-quantumstate*", body={
+                "size": 1,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"term": {"service": _detected_service}},
+                            {"term": {"pipeline_run": True}},
+                            {"range": {"@timestamp": {"gte": "now-30m"}}},
+                        ]
+                    }
+                },
+                "sort": [{"@timestamp": "desc"}],
+            })
+            if _recent["hits"]["total"]["value"] > 0:
+                _last_ts = _recent["hits"]["hits"][0]["_source"].get("@timestamp", "")
+                yield _event("pipeline_complete", {
+                    "text": f"Skipped — {_detected_service} incident already handled {_last_ts[:16].replace('T',' ')} UTC (cooldown 30 min)"
+                })
+                return
+        except Exception:
+            pass  # if check fails, continue with pipeline
+
     arch_prompt = f"""You are the second agent in the QuantumState incident pipeline.
 
 Cassandra reported:

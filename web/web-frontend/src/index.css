@@ -97,6 +97,23 @@
   }
 }
 
+/* ── Number input spinner styling ── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Custom spinner via background for the interval input */
+.spinner-input {
+  position: relative;
+}
+
 @layer utilities {
   .text-gradient-blue {
     @apply bg-clip-text text-transparent;

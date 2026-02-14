@@ -615,9 +615,10 @@ if not es:
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_setup, tab_stream, tab_inject, tab_pipeline, tab_health, tab_cleanup = st.tabs([
-    "Setup", "Stream", "Inject", "Pipeline", "Health", "Cleanup"
+tab_setup, tab_stream, tab_inject, tab_cleanup = st.tabs([
+    "Setup", "Stream", "Inject", "Cleanup"
 ])
+# tab_pipeline, tab_health = reserved for future use
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SETUP
@@ -795,249 +796,249 @@ with tab_inject:
                         st.error(str(e))
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PIPELINE
+# PIPELINE (disabled)
 # ─────────────────────────────────────────────────────────────────────────────
-with tab_pipeline:
-    from orchestrator import (converse_stream, _write_incident, _get_es,
-                               CASSANDRA_PROMPT, ARCHAEOLOGIST_PROMPT,
-                               SURGEON_PROMPT, AGENT_IDS)
-
-    st.markdown('<div class="section-header">Autonomous incident pipeline</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <p style="color:#94A3B8;font-size:0.85rem;margin-bottom:1.5rem">
-    Runs the full <strong style="color:#E2E8F0">Cassandra → Archaeologist → Surgeon</strong> chain
-    via the Agent Builder streaming API. Watch each agent reason and respond in real time.
-    Results are written to <code style="color:#06B6D4">incidents-quantumstate</code>.
-    &nbsp;&nbsp;<strong style="color:#FBBF24">Tip:</strong> Inject a scenario first.
-    </p>
-    """, unsafe_allow_html=True)
-
-    if "pr" not in st.session_state:
-        st.session_state.pr = {}
-
-    col_btn, col_clr, _ = st.columns([1, 1, 4])
-    with col_btn:
-        run_btn = st.button("▶  Run Pipeline", type="primary", use_container_width=True)
-    with col_clr:
-        if st.button("Clear", use_container_width=True, key="clr_pipe"):
-            st.session_state.pr = {}
-            st.rerun()
-
-    st.markdown('<div style="height:0.8rem"></div>', unsafe_allow_html=True)
-
-    def _stream_agent(agent_id, prompt, reasoning_slot):
-        """
-        Generator for st.write_stream(). Yields text chunks from the agent.
-        Updates reasoning_slot with live thinking steps.
-        Stores the full assembled text in a list passed by reference via closure.
-        """
-        collected = []
-        for evt in converse_stream(agent_id, prompt):
-            if evt["event"] == "reasoning":
-                reasoning_slot.markdown(
-                    f'<p style="color:#475569;font-size:0.76rem;font-family:'
-                    f'\'JetBrains Mono\',monospace;margin:2px 0">⟳ {evt["text"]}</p>',
-                    unsafe_allow_html=True,
-                )
-            elif evt["event"] == "message_chunk":
-                collected.append(evt["text"])
-                yield evt["text"]
-            elif evt["event"] == "message_complete" and not collected:
-                # fallback: chunks weren't sent, use complete message
-                yield evt["text"]
-                collected.append(evt["text"])
-            elif evt["event"] == "error":
-                raise RuntimeError(evt["text"])
-        # stash for the caller to read back
-        _stream_agent._last = "".join(collected)
-
-    _stream_agent._last = ""
-
-    # ── Show previous results if not re-running ───────────────────────────────
-    pr = st.session_state.pr
-    if pr and not run_btn:
-        for key, name, role in [
-            ("cassandra",     "Cassandra",     "Detection"),
-            ("archaeologist", "Archaeologist", "Investigation"),
-            ("surgeon",       "Surgeon",       "Remediation"),
-        ]:
-            out = pr.get(key, "")
-            if out:
-                with st.expander(f"✓  {name} — {role}", expanded=False):
-                    st.code(out, language=None)
-
-        if pr.get("incident_id"):
-            st.success(f"Incident written → `incidents-quantumstate / {pr['incident_id']}`")
-        if pr.get("error"):
-            st.error(f"Pipeline error: {pr['error']}")
-
-    # ── Live streaming run ────────────────────────────────────────────────────
-    if run_btn:
-        st.session_state.pr = {}
-        cassandra_out = arch_out = surg_out = ""
-
-        with st.status("Running incident pipeline…", expanded=True) as pipe_status:
-            try:
-                # ── Cassandra ─────────────────────────────────────────────────
-                pipe_status.update(label="Cassandra — scanning for anomalies…")
-                st.markdown(
-                    '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
-                    'margin:0 0 4px">CASSANDRA · Detection</p>',
-                    unsafe_allow_html=True,
-                )
-                reasoning_slot = st.empty()
-                st.write_stream(_stream_agent(AGENT_IDS["cassandra"], CASSANDRA_PROMPT, reasoning_slot))
-                cassandra_out = _stream_agent._last
-                reasoning_slot.empty()
-                st.session_state.pr["cassandra"] = cassandra_out
-
-                if "anomaly_detected: false" in cassandra_out.lower():
-                    pipe_status.update(label="No anomaly detected — system is healthy", state="complete")
-                    st.info("Cassandra found no anomalies. Inject a scenario and try again.")
-                else:
-                    # ── Archaeologist ──────────────────────────────────────────
-                    st.divider()
-                    pipe_status.update(label="Archaeologist — investigating root cause…")
-                    st.markdown(
-                        '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
-                        'margin:0 0 4px">ARCHAEOLOGIST · Investigation</p>',
-                        unsafe_allow_html=True,
-                    )
-                    reasoning_slot = st.empty()
-                    arch_prompt = ARCHAEOLOGIST_PROMPT.format(cassandra_output=cassandra_out)
-                    st.write_stream(_stream_agent(AGENT_IDS["archaeologist"], arch_prompt, reasoning_slot))
-                    arch_out = _stream_agent._last
-                    reasoning_slot.empty()
-                    st.session_state.pr["archaeologist"] = arch_out
-
-                    # ── Surgeon ────────────────────────────────────────────────
-                    st.divider()
-                    pipe_status.update(label="Surgeon — verifying recovery…")
-                    st.markdown(
-                        '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
-                        'margin:0 0 4px">SURGEON · Remediation</p>',
-                        unsafe_allow_html=True,
-                    )
-                    reasoning_slot = st.empty()
-                    surg_prompt = SURGEON_PROMPT.format(
-                        cassandra_output=cassandra_out,
-                        archaeologist_output=arch_out,
-                    )
-                    st.write_stream(_stream_agent(AGENT_IDS["surgeon"], surg_prompt, reasoning_slot))
-                    surg_out = _stream_agent._last
-                    reasoning_slot.empty()
-                    st.session_state.pr["surgeon"] = surg_out
-
-                    # ── Write incident ─────────────────────────────────────────
-                    st.divider()
-                    pipe_status.update(label="Writing incident to Elasticsearch…")
-                    report = {
-                        "cassandra_raw":     cassandra_out,
-                        "archaeologist_raw": arch_out,
-                        "surgeon_raw":       surg_out,
-                    }
-                    for line in surg_out.splitlines():
-                        for field in ("service", "anomaly_type", "root_cause", "action_taken",
-                                      "resolution_status", "mttr_estimate", "lessons_learned",
-                                      "pipeline_summary"):
-                            if line.lower().startswith(f"- {field}:"):
-                                report[field] = line.split(":", 1)[1].strip()
-
-                    incident_id = _write_incident(_get_es(), report)
-                    st.session_state.pr["incident_id"] = incident_id
-                    pipe_status.update(label="Pipeline complete — incident resolved ✓", state="complete")
-
-            except Exception as exc:
-                st.session_state.pr["error"] = str(exc)
-                pipe_status.update(label=f"Pipeline failed: {exc}", state="error")
-                st.error(str(exc))
-
-        st.rerun()
-
-
+# with tab_pipeline:
+#     from orchestrator import (converse_stream, _write_incident, _get_es,
+#                                CASSANDRA_PROMPT, ARCHAEOLOGIST_PROMPT,
+#                                SURGEON_PROMPT, AGENT_IDS)
+# 
+#     st.markdown('<div class="section-header">Autonomous incident pipeline</div>', unsafe_allow_html=True)
+#     st.markdown("""
+#     <p style="color:#94A3B8;font-size:0.85rem;margin-bottom:1.5rem">
+#     Runs the full <strong style="color:#E2E8F0">Cassandra → Archaeologist → Surgeon</strong> chain
+#     via the Agent Builder streaming API. Watch each agent reason and respond in real time.
+#     Results are written to <code style="color:#06B6D4">incidents-quantumstate</code>.
+#     &nbsp;&nbsp;<strong style="color:#FBBF24">Tip:</strong> Inject a scenario first.
+#     </p>
+#     """, unsafe_allow_html=True)
+# 
+#     if "pr" not in st.session_state:
+#         st.session_state.pr = {}
+# 
+#     col_btn, col_clr, _ = st.columns([1, 1, 4])
+#     with col_btn:
+#         run_btn = st.button("▶  Run Pipeline", type="primary", use_container_width=True)
+#     with col_clr:
+#         if st.button("Clear", use_container_width=True, key="clr_pipe"):
+#             st.session_state.pr = {}
+#             st.rerun()
+# 
+#     st.markdown('<div style="height:0.8rem"></div>', unsafe_allow_html=True)
+# 
+#     def _stream_agent(agent_id, prompt, reasoning_slot):
+#         """
+#         Generator for st.write_stream(). Yields text chunks from the agent.
+#         Updates reasoning_slot with live thinking steps.
+#         Stores the full assembled text in a list passed by reference via closure.
+#         """
+#         collected = []
+#         for evt in converse_stream(agent_id, prompt):
+#             if evt["event"] == "reasoning":
+#                 reasoning_slot.markdown(
+#                     f'<p style="color:#475569;font-size:0.76rem;font-family:'
+#                     f'\'JetBrains Mono\',monospace;margin:2px 0">⟳ {evt["text"]}</p>',
+#                     unsafe_allow_html=True,
+#                 )
+#             elif evt["event"] == "message_chunk":
+#                 collected.append(evt["text"])
+#                 yield evt["text"]
+#             elif evt["event"] == "message_complete" and not collected:
+#                 # fallback: chunks weren't sent, use complete message
+#                 yield evt["text"]
+#                 collected.append(evt["text"])
+#             elif evt["event"] == "error":
+#                 raise RuntimeError(evt["text"])
+#         # stash for the caller to read back
+#         _stream_agent._last = "".join(collected)
+# 
+#     _stream_agent._last = ""
+# 
+#     # ── Show previous results if not re-running ───────────────────────────────
+#     pr = st.session_state.pr
+#     if pr and not run_btn:
+#         for key, name, role in [
+#             ("cassandra",     "Cassandra",     "Detection"),
+#             ("archaeologist", "Archaeologist", "Investigation"),
+#             ("surgeon",       "Surgeon",       "Remediation"),
+#         ]:
+#             out = pr.get(key, "")
+#             if out:
+#                 with st.expander(f"✓  {name} — {role}", expanded=False):
+#                     st.code(out, language=None)
+# 
+#         if pr.get("incident_id"):
+#             st.success(f"Incident written → `incidents-quantumstate / {pr['incident_id']}`")
+#         if pr.get("error"):
+#             st.error(f"Pipeline error: {pr['error']}")
+# 
+#     # ── Live streaming run ────────────────────────────────────────────────────
+#     if run_btn:
+#         st.session_state.pr = {}
+#         cassandra_out = arch_out = surg_out = ""
+# 
+#         with st.status("Running incident pipeline…", expanded=True) as pipe_status:
+#             try:
+#                 # ── Cassandra ─────────────────────────────────────────────────
+#                 pipe_status.update(label="Cassandra — scanning for anomalies…")
+#                 st.markdown(
+#                     '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
+#                     'margin:0 0 4px">CASSANDRA · Detection</p>',
+#                     unsafe_allow_html=True,
+#                 )
+#                 reasoning_slot = st.empty()
+#                 st.write_stream(_stream_agent(AGENT_IDS["cassandra"], CASSANDRA_PROMPT, reasoning_slot))
+#                 cassandra_out = _stream_agent._last
+#                 reasoning_slot.empty()
+#                 st.session_state.pr["cassandra"] = cassandra_out
+# 
+#                 if "anomaly_detected: false" in cassandra_out.lower():
+#                     pipe_status.update(label="No anomaly detected — system is healthy", state="complete")
+#                     st.info("Cassandra found no anomalies. Inject a scenario and try again.")
+#                 else:
+#                     # ── Archaeologist ──────────────────────────────────────────
+#                     st.divider()
+#                     pipe_status.update(label="Archaeologist — investigating root cause…")
+#                     st.markdown(
+#                         '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
+#                         'margin:0 0 4px">ARCHAEOLOGIST · Investigation</p>',
+#                         unsafe_allow_html=True,
+#                     )
+#                     reasoning_slot = st.empty()
+#                     arch_prompt = ARCHAEOLOGIST_PROMPT.format(cassandra_output=cassandra_out)
+#                     st.write_stream(_stream_agent(AGENT_IDS["archaeologist"], arch_prompt, reasoning_slot))
+#                     arch_out = _stream_agent._last
+#                     reasoning_slot.empty()
+#                     st.session_state.pr["archaeologist"] = arch_out
+# 
+#                     # ── Surgeon ────────────────────────────────────────────────
+#                     st.divider()
+#                     pipe_status.update(label="Surgeon — verifying recovery…")
+#                     st.markdown(
+#                         '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
+#                         'margin:0 0 4px">SURGEON · Remediation</p>',
+#                         unsafe_allow_html=True,
+#                     )
+#                     reasoning_slot = st.empty()
+#                     surg_prompt = SURGEON_PROMPT.format(
+#                         cassandra_output=cassandra_out,
+#                         archaeologist_output=arch_out,
+#                     )
+#                     st.write_stream(_stream_agent(AGENT_IDS["surgeon"], surg_prompt, reasoning_slot))
+#                     surg_out = _stream_agent._last
+#                     reasoning_slot.empty()
+#                     st.session_state.pr["surgeon"] = surg_out
+# 
+#                     # ── Write incident ─────────────────────────────────────────
+#                     st.divider()
+#                     pipe_status.update(label="Writing incident to Elasticsearch…")
+#                     report = {
+#                         "cassandra_raw":     cassandra_out,
+#                         "archaeologist_raw": arch_out,
+#                         "surgeon_raw":       surg_out,
+#                     }
+#                     for line in surg_out.splitlines():
+#                         for field in ("service", "anomaly_type", "root_cause", "action_taken",
+#                                       "resolution_status", "mttr_estimate", "lessons_learned",
+#                                       "pipeline_summary"):
+#                             if line.lower().startswith(f"- {field}:"):
+#                                 report[field] = line.split(":", 1)[1].strip()
+# 
+#                     incident_id = _write_incident(_get_es(), report)
+#                     st.session_state.pr["incident_id"] = incident_id
+#                     pipe_status.update(label="Pipeline complete — incident resolved ✓", state="complete")
+# 
+#             except Exception as exc:
+#                 st.session_state.pr["error"] = str(exc)
+#                 pipe_status.update(label=f"Pipeline failed: {exc}", state="error")
+#                 st.error(str(exc))
+# 
+#         st.rerun()
+# 
+# 
 # ─────────────────────────────────────────────────────────────────────────────
-# HEALTH
+# HEALTH (disabled)
 # ─────────────────────────────────────────────────────────────────────────────
-with tab_health:
-    st.markdown('<div class="section-header">Service health — latest values</div>', unsafe_allow_html=True)
-
-    cols = st.columns(4)
-    for col, svc in zip(cols, SERVICES):
-        with col:
-            mem = get_latest_metric(es, svc["name"], "memory_percent")
-            cpu = get_latest_metric(es, svc["name"], "cpu_percent")
-            err = get_latest_metric(es, svc["name"], "error_rate")
-            lat = get_latest_metric(es, svc["name"], "request_latency_ms")
-
-            if any([mem and mem >= 80, err and err >= 10, cpu and cpu >= 85]):
-                pill = '<span class="status-pill pill-crit">CRITICAL</span>'
-            elif any([mem and mem >= 65, err and err >= 3, cpu and cpu >= 65]):
-                pill = '<span class="status-pill pill-warn">WARNING</span>'
-            else:
-                pill = '<span class="status-pill pill-ok">HEALTHY</span>'
-
-            def row(label, value, warn, crit, suffix=""):
-                cls = metric_class(value, warn, crit)
-                return f"""<div class="metric-row">
-                  <span class="metric-label">{label}</span>
-                  <span class="metric-value {cls}">{fmt(value, suffix=suffix)}</span>
-                </div>"""
-
-            st.markdown(f"""
-            <div class="metric-card">
-              <div class="metric-card-title">service</div>
-              <div class="metric-card-service">{svc["name"]}</div>
-              <div class="metric-card-region">{svc["region"]}</div>
-              {pill}
-              {row("Memory",  mem,  65,  80,  "%")}
-              {row("CPU",     cpu,  65,  85,  "%")}
-              {row("Errors",  err,   3,  10,  "/min")}
-              {row("Latency", lat, 500,1000,  "ms")}
-            </div>
-            """, unsafe_allow_html=True)
-
-    # Log viewer
-    st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-header">Recent logs</div>', unsafe_allow_html=True)
-
-    sel_col, _ = st.columns([2, 5])
-    with sel_col:
-        selected = st.selectbox("Service", [s["name"] for s in SERVICES], label_visibility="collapsed")
-
-    try:
-        since = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
-        resp  = es.search(index="logs-quantumstate", body={
-            "size": 15,
-            "query": {"bool": {"filter": [
-                {"term": {"service": selected}},
-                {"range": {"@timestamp": {"gte": since}}},
-            ]}},
-            "sort": [{"@timestamp": "desc"}],
-        })
-        logs = [h["_source"] for h in resp["hits"]["hits"]]
-
-        if logs:
-            lines = ""
-            for log in logs:
-                ts    = log.get("@timestamp", "")[:19].replace("T", " ")
-                level = log.get("level", "INFO")
-                msg   = log.get("message", "")
-                lines += f"""<div class="log-line">
-                  <span class="log-ts">{ts}</span>
-                  <span class="log-level level-{level}">{level}</span>
-                  <span class="log-msg">{msg}</span>
-                </div>"""
-            st.markdown(f'<div style="background:#060C18;border:1px solid #1A2640;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
-                        unsafe_allow_html=True)
-        else:
-            st.markdown('<p style="color:#475569;font-size:0.85rem">No logs in the last 30 minutes.</p>',
-                        unsafe_allow_html=True)
-    except Exception as e:
-        st.error(str(e))
-
-    st.markdown('<p style="color:#334155;font-size:0.72rem;margin-top:1rem">Refresh the page to update health values.</p>',
-                unsafe_allow_html=True)
-
+# with tab_health:
+#     st.markdown('<div class="section-header">Service health — latest values</div>', unsafe_allow_html=True)
+# 
+#     cols = st.columns(4)
+#     for col, svc in zip(cols, SERVICES):
+#         with col:
+#             mem = get_latest_metric(es, svc["name"], "memory_percent")
+#             cpu = get_latest_metric(es, svc["name"], "cpu_percent")
+#             err = get_latest_metric(es, svc["name"], "error_rate")
+#             lat = get_latest_metric(es, svc["name"], "request_latency_ms")
+# 
+#             if any([mem and mem >= 80, err and err >= 10, cpu and cpu >= 85]):
+#                 pill = '<span class="status-pill pill-crit">CRITICAL</span>'
+#             elif any([mem and mem >= 65, err and err >= 3, cpu and cpu >= 65]):
+#                 pill = '<span class="status-pill pill-warn">WARNING</span>'
+#             else:
+#                 pill = '<span class="status-pill pill-ok">HEALTHY</span>'
+# 
+#             def row(label, value, warn, crit, suffix=""):
+#                 cls = metric_class(value, warn, crit)
+#                 return f"""<div class="metric-row">
+#                   <span class="metric-label">{label}</span>
+#                   <span class="metric-value {cls}">{fmt(value, suffix=suffix)}</span>
+#                 </div>"""
+# 
+#             st.markdown(f"""
+#             <div class="metric-card">
+#               <div class="metric-card-title">service</div>
+#               <div class="metric-card-service">{svc["name"]}</div>
+#               <div class="metric-card-region">{svc["region"]}</div>
+#               {pill}
+#               {row("Memory",  mem,  65,  80,  "%")}
+#               {row("CPU",     cpu,  65,  85,  "%")}
+#               {row("Errors",  err,   3,  10,  "/min")}
+#               {row("Latency", lat, 500,1000,  "ms")}
+#             </div>
+#             """, unsafe_allow_html=True)
+# 
+#     # Log viewer
+#     st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
+#     st.markdown('<div class="section-header">Recent logs</div>', unsafe_allow_html=True)
+# 
+#     sel_col, _ = st.columns([2, 5])
+#     with sel_col:
+#         selected = st.selectbox("Service", [s["name"] for s in SERVICES], label_visibility="collapsed")
+# 
+#     try:
+#         since = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+#         resp  = es.search(index="logs-quantumstate", body={
+#             "size": 15,
+#             "query": {"bool": {"filter": [
+#                 {"term": {"service": selected}},
+#                 {"range": {"@timestamp": {"gte": since}}},
+#             ]}},
+#             "sort": [{"@timestamp": "desc"}],
+#         })
+#         logs = [h["_source"] for h in resp["hits"]["hits"]]
+# 
+#         if logs:
+#             lines = ""
+#             for log in logs:
+#                 ts    = log.get("@timestamp", "")[:19].replace("T", " ")
+#                 level = log.get("level", "INFO")
+#                 msg   = log.get("message", "")
+#                 lines += f"""<div class="log-line">
+#                   <span class="log-ts">{ts}</span>
+#                   <span class="log-level level-{level}">{level}</span>
+#                   <span class="log-msg">{msg}</span>
+#                 </div>"""
+#             st.markdown(f'<div style="background:#060C18;border:1px solid #1A2640;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
+#                         unsafe_allow_html=True)
+#         else:
+#             st.markdown('<p style="color:#475569;font-size:0.85rem">No logs in the last 30 minutes.</p>',
+#                         unsafe_allow_html=True)
+#     except Exception as e:
+#         st.error(str(e))
+# 
+#     st.markdown('<p style="color:#334155;font-size:0.72rem;margin-top:1rem">Refresh the page to update health values.</p>',
+#                 unsafe_allow_html=True)
+# 
 # ─────────────────────────────────────────────────────────────────────────────
 # CLEANUP
 # ─────────────────────────────────────────────────────────────────────────────

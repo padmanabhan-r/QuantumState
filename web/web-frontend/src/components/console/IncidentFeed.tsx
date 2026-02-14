@@ -90,18 +90,17 @@ export default function IncidentFeed() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header row */}
+      {/* Count + refresh row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">Live Incidents</span>
           {!isLoading && !isError && (
             <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-mono text-primary">
-              {data?.total ?? 0}
+              {data?.total ?? 0} incidents
             </span>
           )}
         </div>
         <span className="text-[10px] font-mono text-muted-foreground">
-          {isLoading ? "Loading…" : isError ? "Error" : dataUpdatedAt > 0 ? `Updated ${timeAgo(new Date(dataUpdatedAt).toISOString())} · auto-refresh 10s` : ""}
+          {isLoading ? "Loading…" : isError ? "Error" : dataUpdatedAt > 0 ? `↻ ${timeAgo(new Date(dataUpdatedAt).toISOString())}` : ""}
         </span>
       </div>
 
@@ -135,7 +134,7 @@ export default function IncidentFeed() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="flex flex-col gap-3">
         {data?.incidents.map((inc) => (
           <IncidentCard key={inc.id} incident={inc} />
         ))}
