@@ -8,22 +8,7 @@
 
 QuantumState is an AI agent system that watches over a production infrastructure and handles incidents automatically — from the moment an anomaly is detected to the moment a fix is verified and logged.
 
-Instead of an on-call engineer getting paged at 3am, spending 45 minutes correlating dashboards, Slack messages, and deployment logs to figure out what broke and why — QuantumState does it in under 4 minutes.
-
----
-
-## The problem it solves
-
-Modern software runs as many small services (microservices). When something goes wrong — a memory leak, a bad deployment, a cache going offline — the failure rarely announces itself clearly. An engineer has to:
-
-1. Notice the error rate is climbing (if they're watching)
-2. Check which service is affected
-3. Correlate the timing with recent deployments
-4. Search through thousands of log lines for the root cause
-5. Decide on a fix, get approval, execute it
-6. Verify it worked
-
-This takes 30–90 minutes on average. QuantumState compresses it to under 4 minutes by automating every step with a chain of specialised AI agents.
+Instead of an on-call engineer getting paged at 3am, spending 45 minutes correlating dashboards and logs — QuantumState does it in under 4 minutes.
 
 ---
 
@@ -36,30 +21,20 @@ Elasticsearch (metrics + logs)
         │
         ▼
 ┌───────────────────┐
-│    Cassandra      │  Detection agent
-│                   │  Runs ES|QL queries every few minutes.
-│  "I see memory    │  Compares current metrics to 24h baseline.
-│  climbing on      │  Calculates time-to-failure.
-│  payment-service" │  Confidence: 94%
+│    Cassandra      │  Detection — runs ES|QL queries, compares current
+│                   │  metrics to 24h baseline, calculates time-to-failure
 └────────┬──────────┘
          │
          ▼
 ┌───────────────────┐
-│  Archaeologist    │  Investigation agent
-│                   │  Searches logs for errors in the same time window.
-│  "Deploy v2.1.0   │  Finds similar past incidents.
-│  introduced a     │  Correlates deploy events with metric changes.
-│  connection pool  │  Builds an evidence chain.
-│  leak"            │
+│  Archaeologist    │  Investigation — searches logs, correlates deploy
+│                   │  events, matches against historical incidents
 └────────┬──────────┘
          │
          ▼
 ┌───────────────────┐
-│     Surgeon       │  Action agent
-│                   │  Analyses current metrics vs healthy thresholds.
-│  "Memory down to  │  Verifies whether recovery occurred.
-│  54%. Error rate  │  Writes full audit record.
-│  0.77%. RESOLVED" │  Recommends fix steps.
+│     Surgeon       │  Remediation — verifies recovery against healthy
+│                   │  thresholds, writes full incident audit record
 └───────────────────┘
         │
         ▼
@@ -67,13 +42,13 @@ incidents-quantumstate (resolved incident record)
 agent-decisions-quantumstate (full audit trail)
 ```
 
-The chain is orchestrated by a **Python API orchestrator** (`ingest/orchestrator.py`) that calls each agent via the Elastic Agent Builder converse API with real-time SSE streaming. A reference **Elastic Workflow** YAML (`workflows/incident-pipeline.yaml`) is also included for native `ai.agent` step execution on compatible Elastic deployments.
+The pipeline is orchestrated by a FastAPI backend (`backend/orchestrator.py`) that calls each agent via the Elastic Agent Builder converse API with real-time SSE streaming. A reference Elastic Workflow YAML (`.backup/workflows/incident-pipeline.yaml`) is also included for native `ai.agent` step execution.
 
 ---
 
 ## The fictional environment
 
-QuantumState monitors the backend of a fictional **e-commerce platform** — think the infrastructure behind something like Shopify or Amazon. When a customer shops, every click touches multiple services in sequence:
+QuantumState monitors the backend of a fictional **e-commerce platform**. When a customer shops, every click touches multiple services:
 
 ```
 Customer browses → logs in → adds to cart → checks out → payment charged → stock decremented
@@ -81,38 +56,25 @@ Customer browses → logs in → adds to cart → checks out → payment charged
                 auth-service          checkout-service   payment-service   inventory-service
 ```
 
-| Service | Role | Why it matters |
-|---|---|---|
-| **payment-service** | Processes credit card charges and refunds | Every minute it's down is direct lost revenue |
-| **checkout-service** | Handles cart → order placement flow | A bug here breaks the entire purchase funnel |
-| **auth-service** | Authenticates users via JWT + Redis session cache | Every other service depends on it — if Redis goes down, everything slows |
-| **inventory-service** | Tracks stock levels across EU warehouse | Silent failures lead to overselling and fulfilment errors |
-
-This is a deliberately recognisable stack — judges immediately understand what each service does and why an outage is costly. The MTTR story lands harder when the system being fixed is one everyone has used.
-
-All data is synthetic — generated by Python scripts that produce realistic metrics (memory, CPU, error rates, latency) and application logs.
+All data is synthetic — generated by the Simulation Control panel which creates realistic metrics, logs, and anomaly scenarios in Elasticsearch.
 
 ---
 
 ## Agents
 
-All three agents are built and tested in Elastic Agent Builder on **Elastic for Observability** (`quantumstate-prod`).
+All three agents are built in Elastic Agent Builder on **Elastic for Observability** (`quantumstate-prod`).
 
 ### Cassandra — Detection
 **ID:** `cassandra-detection-agent`
 
-Runs ES|QL queries against `metrics-quantumstate`, compares current readings to the 24h baseline, and calculates time to failure for degrading services.
-
 | Tool | What it does |
 |---|---|
-| `detect_memory_leak` | Finds services where memory > 20% above baseline |
+| `detect_memory_leak` | Finds services where memory peaked above 70% in the last 30 min |
 | `detect_error_spike` | Finds services where error rate > 3/min |
 | `calculate_time_to_failure` | Estimates minutes until 90% memory threshold |
 
 ### Archaeologist — Investigation
 **ID:** `archaeologist-investigation-agent`
-
-Given a service and anomaly type from Cassandra, searches logs, checks for recent deployments, and matches against historical incidents to determine root cause.
 
 | Tool | What it does |
 |---|---|
@@ -123,15 +85,13 @@ Given a service and anomaly type from Cassandra, searches logs, checks for recen
 ### Surgeon — Remediation
 **ID:** `surgeon-action-agent`
 
-Takes the Archaeologist's root cause, reads the current metrics picture, verifies recovery against healthy thresholds, and logs MTTR and lessons learned.
-
 | Tool | What it does |
 |---|---|
 | `log_remediation_action` | Reads recent audit trail for the service |
 | `verify_resolution` | Checks memory/error rate/latency against healthy thresholds |
 | `get_recent_anomaly_metrics` | Full metric summary (avg/max/min) over last hour |
 
-> **Note:** Agents analyse data and recommend actions — they do not directly execute infrastructure changes (restart, rollback). The Surgeon reads metrics and confirms whether the service is recovering; actual remediation is executed by a human or an automation layer that acts on the agent's recommendation.
+> Agents analyse data and recommend actions. They do not directly execute infrastructure changes — actual remediation is executed by a human or an automation layer acting on the agent's recommendation.
 
 ---
 
@@ -139,13 +99,12 @@ Takes the Archaeologist's root cause, reads the current metrics picture, verifie
 
 | Layer | Technology |
 |---|---|
-| Agent runtime | Elastic Agent Builder (Elastic for Observability — `quantumstate-prod`) |
-| Agent tools | ES\|QL (9 custom parameterised queries across 3 agents) |
-| Orchestration | Python API orchestrator (`ingest/orchestrator.py`) via `/api/agent_builder/converse/async` |
-| Workflow reference | Elastic Workflows YAML (`workflows/incident-pipeline.yaml`) |
+| Agent runtime | Elastic Agent Builder (Elastic for Observability) |
+| Agent tools | ES\|QL — 9 custom parameterised queries across 3 agents |
+| Orchestration | Python FastAPI — SSE streaming via `/api/agent_builder/converse/async` |
 | Data store | Elasticsearch Serverless |
-| Data generation | Python (`ingest/`) |
-| Demo control panel | Streamlit (`ingest/qs_console.py`) |
+| Frontend | React + Vite + TypeScript + shadcn/ui + Tailwind CSS |
+| Backend | FastAPI (Python) |
 
 ---
 
@@ -153,79 +112,70 @@ Takes the Archaeologist's root cause, reads the current metrics picture, verifie
 
 ```
 quantumstate/
-├── ingest/
-│   ├── qs_console.py       Streamlit control panel — setup, stream, inject, pipeline, health, cleanup
-│   ├── orchestrator.py     Python pipeline orchestrator — calls agents via SSE streaming API
-│   ├── inject.py           Anomaly scenario injection functions
-│   ├── setup.py            Standalone index setup script
-│   └── stream.py           Standalone live metric streamer
+├── frontend/                   React + Vite + TypeScript UI
+│   └── src/
+│       ├── pages/              Index, Console, SimControl
+│       └── components/         console/, landing/, ui/
+├── backend/                    FastAPI Python backend
+│   ├── main.py
+│   ├── elastic.py              Shared Elasticsearch client
+│   ├── inject.py               Anomaly injection functions
+│   ├── orchestrator.py         Agent Builder SSE streaming
+│   └── routers/                incidents, health, pipeline, chat, sim
 ├── docs/
-│   └── data-model.md       Indices, fields, scenarios explained
-├── workflows/
-│   └── incident-pipeline.yaml  Reference Elastic Workflow — chains Cassandra → Archaeologist → Surgeon
-├── agents-definition.md    Full manual reference for recreating all tools and agents
-├── implementation/
-│   ├── PLAN.md             Full architecture and build plan
-│   ├── PHASE_1.md          Data layer — complete
-│   ├── PHASE_2.md          Agent Builder — complete
-│   └── PHASE_3.md          Pipeline orchestrator — complete
-├── agent-builder-docs/     Elastic Agent Builder official docs (reference)
-├── notes/                  Challenge brief, research, background
-└── sample-project/         Reference implementation from hackathon resources
+│   └── data-model.md           Index schemas and demo scenarios
+├── agents-definition.md        Full reference for recreating agents and tools
+├── start.sh                    Starts frontend + backend
+└── .env                        Elastic credentials (not committed)
 ```
 
 ---
 
-## Running the demo console
+## Getting started
 
-```bash
-# Install dependencies
-uv sync
+### Prerequisites
 
-# Start the control panel
-streamlit run ingest/qs_console.py
-```
+- Python 3.12+ with `uv` or `pip`
+- Node.js 18+
+- Elastic Cloud deployment with Agent Builder enabled
 
-The console handles everything:
-- **Setup tab** — creates Elasticsearch indices and loads 24h of baseline data
-- **Stream tab** — starts live metric streaming (30s interval)
-- **Inject tab** — triggers one of 3 anomaly scenarios for the agents to detect
-- **Pipeline tab** — runs all three agents in sequence with live token streaming; results persist in the session
-- **Health tab** — live service health cards and log viewer
-- **Cleanup tab** — removes all QuantumState indices from your Elasticsearch cluster
+### Environment
 
----
-
-## Environment setup
-
-Create a `.env` file in the project root:
+Create `.env` in the project root:
 
 ```
-ELASTIC_CLOUD_ID=your-cloud-id-here
-ELASTIC_API_KEY=your-api-key-here
+ELASTIC_CLOUD_ID=your-cloud-id
+ELASTIC_API_KEY=your-api-key
 KIBANA_URL=https://your-deployment.kb.us-east-1.aws.elastic.cloud
 ```
 
----
+### Run
 
-## Pipeline orchestrator
+```bash
+# Install Python dependencies
+uv sync
 
-`ingest/orchestrator.py` wires all three agents into a single pipeline by calling the Elastic Agent Builder async converse endpoint with server-sent events (SSE) streaming.
-
-```python
-# Each agent call streams tokens as they are generated
-for evt in converse_stream(agent_id, message):
-    if evt["event"] == "reasoning":
-        # Show live reasoning trace
-    elif evt["event"] == "message_chunk":
-        # Stream response tokens to the UI
-    elif evt["event"] == "message_complete":
-        # Full final response — pass to next agent
+# Start everything
+./start.sh
 ```
 
-Each agent's full response is injected into the next agent's prompt, so Cassandra's detection output becomes the Archaeologist's starting context, and so on.
+- **Landing:** http://localhost:8080
+- **Console:** http://localhost:8080/console
+- **Sim Control:** http://localhost:8080/sim
+- **API:** http://localhost:8000
 
-The `workflows/incident-pipeline.yaml` file provides an equivalent native Elastic Workflow using `ai.agent` steps (requires Elastic for Observability or Elastic for Security serverless, or self-managed 9.3+).
+---
+
+## Simulation Control
+
+The `/sim` page replaces the old Streamlit console. It handles the full demo lifecycle:
+
+| Tab | What it does |
+|---|---|
+| **Setup** | Creates Elasticsearch indices, loads 24h baseline metrics + logs + 4 historical incidents |
+| **Stream** | Starts a background thread emitting live metrics every 30s across all 4 services |
+| **Inject** | Triggers one of 3 anomaly scenarios — agents detect it on the next pipeline run |
+| **Cleanup** | Clear all documents or delete indices entirely |
 
 ---
 
@@ -233,30 +183,20 @@ The `workflows/incident-pipeline.yaml` file provides an equivalent native Elasti
 
 | Scenario | Service | Pattern | Root cause |
 |---|---|---|---|
-| Memory Leak | payment-service | Memory 55% → 89% over 25 min | JVM connection pool not releasing memory |
-| Deployment Rollback | checkout-service | Error rate 0.4 → 18/min after deploy | NPE in cart serialisation in v3.5.0 |
+| Memory Leak | payment-service | Memory 55% → 89% over 25 min | JVM connection pool leak |
+| Deployment Rollback | checkout-service | Error rate 0.4 → 18/min after deploy | NPE in cart serialisation (v3.5.0) |
 | Error Spike | auth-service | Error rate 0.3 → 28/min instantly | Redis session cache went offline |
 
 ---
 
-## Actual pipeline run output
+## Pipeline deduplication
 
-Below is the real output from a full pipeline run with all three anomalies injected simultaneously.
+The pipeline tracks which services were handled. On each run:
+- Cassandra detects all anomalous services
+- Any service that already had an incident written in the last 30 minutes is skipped
+- Only new services proceed through Archaeologist → Surgeon → incident write
 
-**Cassandra detected:**
-- `payment-service` — memory leak, 88.9% memory, ~3.8 min to critical (confidence 95)
-- `checkout-service` — error spike, 18.4/min error rate (confidence 92)
-- `auth-service` — error spike, 28.1/min error rate (confidence 97)
-
-**Archaeologist root causes:**
-- `payment-service` — JDBC connection pool leak, HEAP_PRESSURE errors, no deploy, historical match → rollback to v2.0.9
-- `checkout-service` — NPE in cart serialisation (v3.5.0 deploy), → rollback to v3.4.9
-- `auth-service` — Redis session cache failure, AUTH_FAILURE cascade → restart cache + circuit breaker
-
-**Surgeon outcomes:**
-- `payment-service` — RESOLVED. Memory 54.2%, error rate 0.77%, latency 187ms. MTTR ~4 min
-- `checkout-service` — PARTIALLY_RESOLVED. Error rate 0.4%, memory 66.5%, latency 310ms (elevated). MTTR ~6 min
-- `auth-service` — PARTIALLY_RESOLVED. Error rate 1.8% (< 2% threshold met), latency 287ms, memory 74.8% (elevated). MTTR ~5 min
+This means you can inject multiple scenarios at different times and each will be handled exactly once.
 
 ---
 
@@ -265,6 +205,5 @@ Below is the real output from a full pipeline run with all three anomalies injec
 **Event:** Elasticsearch Agent Builder Hackathon
 **Dates:** January 22 – February 27, 2026
 **Prize pool:** $20,000
-**Judging criteria:** Multi-step reasoning, tool orchestration, real-world automation, measurable impact
 
 QuantumState targets the **time-series anomaly detection** and **multi-agent** tracks with a concrete, measurable outcome: MTTR reduced from ~47 minutes to ~4 minutes.

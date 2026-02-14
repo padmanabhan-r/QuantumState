@@ -102,11 +102,14 @@ service             Which service was affected
 region              Where it happened
 anomaly_type        Classification of the failure pattern
 root_cause          Full explanation of what caused it
-actions_taken       What was done to fix it
-resolved_at         When it was resolved
-mttr_seconds        Mean Time To Resolve in seconds
-status              Always "resolved" (open incidents go elsewhere)
+action_taken        What was done to fix it
+resolution_status   RESOLVED / MONITORING / PARTIAL
+mttr_estimate       Human-readable time estimate from Surgeon
+pipeline_summary    One-line summary of what happened
+lessons_learned     What the agents noted for future runs
 ```
+
+Pipeline-written incidents use `resolution_status` (not `status`) so the frontend can distinguish them from seed data.
 
 **Pre-seeded incidents** (loaded by setup):
 
