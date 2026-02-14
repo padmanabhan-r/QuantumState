@@ -122,8 +122,6 @@ quantumstate/
 │   ├── inject.py               Anomaly injection functions
 │   ├── orchestrator.py         Agent Builder SSE streaming
 │   └── routers/                incidents, health, pipeline, chat, sim
-├── docs/
-│   └── data-model.md           Index schemas and demo scenarios
 ├── agents-definition.md        Full reference for recreating agents and tools
 ├── start.sh                    Starts frontend + backend
 └── .env                        Elastic credentials (not committed)
