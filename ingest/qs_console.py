@@ -37,8 +37,31 @@ st.markdown("""
   /* Import font */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+  /* ── Design tokens (matching web app) ── */
+  :root {
+    --bg-page:    #060C18;
+    --bg-card:    #0B1222;
+    --bg-card-2:  #0F1829;
+    --border:     #1A2640;
+    --border-2:   #223050;
+    --blue:       #3B82F6;
+    --blue-glow:  rgba(59,130,246,0.15);
+    --cyan:       #06B6D4;
+    --cyan-glow:  rgba(6,182,212,0.15);
+    --green:      #10B981;
+    --green-glow: rgba(16,185,129,0.12);
+    --amber:      #F59E0B;
+    --amber-glow: rgba(245,158,11,0.12);
+    --red:        #F87171;
+    --red-glow:   rgba(248,113,113,0.12);
+    --text:       #F1F5F9;
+    --text-muted: #64748B;
+    --text-dim:   #94A3B8;
+  }
+
   html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
+    background-color: var(--bg-page) !important;
   }
 
   /* Hide default Streamlit chrome */
@@ -51,19 +74,24 @@ st.markdown("""
     align-items: center;
     justify-content: space-between;
     padding: 0 0 1.5rem 0;
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 1.5rem;
   }
   .qs-logo {
     font-size: 1.4rem;
     font-weight: 700;
     letter-spacing: -0.5px;
-    color: #F8FAFC;
+    color: var(--text);
   }
-  .qs-logo span { color: #FF6B00; }
+  .qs-logo span {
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
   .qs-tagline {
     font-size: 0.75rem;
-    color: #64748B;
+    color: var(--text-muted);
     font-weight: 400;
     margin-top: 2px;
   }
@@ -74,35 +102,36 @@ st.markdown("""
     border-radius: 20px;
     font-weight: 500;
   }
-  .qs-conn-ok   { background: #052e16; color: #4ADE80; border: 1px solid #166534; }
-  .qs-conn-fail { background: #2d0f0f; color: #f87171; border: 1px solid #7f1d1d; }
+  .qs-conn-ok   { background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .qs-conn-fail { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
 
   /* ── Tabs ── */
   .stTabs [data-baseweb="tab-list"] {
     gap: 0;
-    background: #111111;
+    background: var(--bg-card);
     border-radius: 10px;
     padding: 4px;
-    border: 1px solid #1A1A1A;
+    border: 1px solid var(--border);
   }
   .stTabs [data-baseweb="tab"] {
     border-radius: 7px;
     padding: 8px 20px;
     font-size: 0.82rem;
     font-weight: 500;
-    color: #64748B;
+    color: var(--text-muted);
     background: transparent;
     border: none;
   }
   .stTabs [aria-selected="true"] {
-    background: #1A1A1A !important;
-    color: #F1F5F9 !important;
+    background: rgba(59,130,246,0.12) !important;
+    color: var(--blue) !important;
+    border: 1px solid rgba(59,130,246,0.25) !important;
   }
 
   /* ── Metric cards ── */
   .metric-card {
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.2rem 1.4rem;
     height: 100%;
@@ -112,13 +141,13 @@ st.markdown("""
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #64748B;
+    color: var(--text-muted);
     margin-bottom: 0.6rem;
   }
   .metric-card-service {
     font-size: 0.95rem;
     font-weight: 600;
-    color: #F1F5F9;
+    color: var(--text);
     margin-bottom: 0.2rem;
   }
   .metric-card-region {
@@ -132,20 +161,20 @@ st.markdown("""
     justify-content: space-between;
     align-items: center;
     padding: 5px 0;
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid var(--border);
     font-size: 0.8rem;
   }
   .metric-row:last-child { border-bottom: none; }
-  .metric-label { color: #94A3B8; }
+  .metric-label { color: var(--text-dim); }
   .metric-value {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.82rem;
     font-weight: 500;
     color: #E2E8F0;
   }
-  .metric-value.warn  { color: #FBBF24; }
-  .metric-value.crit  { color: #F87171; }
-  .metric-value.ok    { color: #4ADE80; }
+  .metric-value.warn  { color: var(--amber); }
+  .metric-value.crit  { color: var(--red); }
+  .metric-value.ok    { color: var(--green); }
 
   /* Status pill */
   .status-pill {
@@ -158,14 +187,14 @@ st.markdown("""
     letter-spacing: 0.05em;
     margin-bottom: 0.8rem;
   }
-  .pill-ok   { background: #052e16; color: #4ADE80; border: 1px solid #166534; }
-  .pill-warn { background: #1c1400; color: #fbbf24; border: 1px solid #854d0e; }
-  .pill-crit { background: #2d0f0f; color: #f87171; border: 1px solid #7f1d1d; }
+  .pill-ok   { background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .pill-warn { background: rgba(245,158,11,0.1); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .pill-crit { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
 
   /* ── Inject scenario cards ── */
   .scenario-card {
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.4rem;
     min-height: 220px;
@@ -173,18 +202,18 @@ st.markdown("""
   .scenario-title {
     font-size: 1rem;
     font-weight: 600;
-    color: #F1F5F9;
+    color: var(--text);
     margin-bottom: 0.3rem;
   }
   .scenario-service {
     font-size: 0.72rem;
     font-family: 'JetBrains Mono', monospace;
-    color: #FF6B00;
+    color: var(--cyan);
     margin-bottom: 0.8rem;
   }
   .scenario-desc {
     font-size: 0.8rem;
-    color: #94A3B8;
+    color: var(--text-dim);
     line-height: 1.6;
     margin-bottom: 1rem;
   }
@@ -195,8 +224,9 @@ st.markdown("""
     padding: 2px 8px;
     border-radius: 4px;
     margin-right: 4px;
-    background: #1A1A1A;
-    color: #94A3B8;
+    background: rgba(59,130,246,0.08);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
     font-family: 'JetBrains Mono', monospace;
   }
 
@@ -211,13 +241,13 @@ st.markdown("""
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.76rem;
   }
-  .log-line:hover { background: #1A1A1A; }
+  .log-line:hover { background: var(--border); }
   .log-ts    { color: #475569; flex-shrink: 0; }
   .log-level { font-weight: 600; flex-shrink: 0; min-width: 60px; }
   .log-msg   { color: #CBD5E1; flex: 1; }
-  .level-INFO     { color: #60A5FA; }
-  .level-WARN, .level-WARNING { color: #FBBF24; }
-  .level-ERROR    { color: #F87171; }
+  .level-INFO     { color: var(--blue); }
+  .level-WARN, .level-WARNING { color: var(--amber); }
+  .level-ERROR    { color: var(--red); }
   .level-CRITICAL { color: #C084FC; }
 
   /* ── Section header ── */
@@ -229,7 +259,7 @@ st.markdown("""
     color: #475569;
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid var(--border);
   }
 
   /* ── Index table ── */
@@ -240,17 +270,17 @@ st.markdown("""
     padding: 8px 12px;
     border-radius: 8px;
     margin-bottom: 4px;
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     font-size: 0.8rem;
   }
   .idx-name {
     font-family: 'JetBrains Mono', monospace;
     color: #E2E8F0;
   }
-  .idx-count { color: #64748B; font-size: 0.75rem; }
-  .idx-qs    { border-left: 3px solid #FF6B00; }
-  .idx-other { border-left: 3px solid #374151; }
+  .idx-count { color: var(--text-muted); font-size: 0.75rem; }
+  .idx-qs    { border-left: 3px solid var(--blue); }
+  .idx-other { border-left: 3px solid var(--border-2); }
 
   /* ── Streamlit button overrides ── */
   .stButton > button {
@@ -261,23 +291,73 @@ st.markdown("""
     border: 1px solid transparent;
   }
   .stButton > button[kind="primary"] {
-    background: #FF6B00;
-    color: #0A0A0A;
-    border-color: #FF6B00;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    color: #fff;
+    border-color: transparent;
   }
   .stButton > button[kind="primary"]:hover {
-    background: #FF8C33;
-    border-color: #FF8C33;
+    opacity: 0.88;
+    box-shadow: 0 0 16px var(--blue-glow);
   }
 
   /* Progress bar */
-  .stProgress > div > div { background: #FF6B00; }
+  .stProgress > div > div { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+
+  /* ── Pipeline step cards ── */
+  .pipeline-step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 0.8rem;
+    position: relative;
+  }
+  .pipeline-step.active  { border-color: var(--blue); box-shadow: 0 0 16px var(--blue-glow); }
+  .pipeline-step.done    { border-color: rgba(16,185,129,0.4); }
+  .pipeline-step.waiting { opacity: 0.45; }
+  .pipeline-step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .pipeline-step-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .pipeline-step-role {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .pipeline-output {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    line-height: 1.6;
+    background: var(--bg-page);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-top: 0.6rem;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+  }
+  .pipeline-connector {
+    width: 2px;
+    height: 20px;
+    background: var(--border);
+    margin: 0 auto 0.8rem;
+  }
 
   /* Alerts */
-  .stSuccess { background: #052e16; border: 1px solid #166534; border-radius: 8px; }
-  .stError   { background: #2d0f0f; border: 1px solid #7f1d1d; border-radius: 8px; }
-  .stInfo    { background: #0c1a2e; border: 1px solid #1e3a5f; border-radius: 8px; }
-  .stWarning { background: #1c1400; border: 1px solid #854d0e; border-radius: 8px; }
+  .stSuccess { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; }
+  .stError   { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3); border-radius: 8px; }
+  .stInfo    { background: rgba(59,130,246,0.08);  border: 1px solid rgba(59,130,246,0.3);  border-radius: 8px; }
+  .stWarning { background: rgba(245,158,11,0.08);  border: 1px solid rgba(245,158,11,0.3);  border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -478,6 +558,7 @@ def run_setup(es, progress, status):
             "root_cause": inc["root_cause"], "actions_taken": inc["actions_taken"],
             "resolved_at": (ts + timedelta(seconds=inc["mttr_seconds"])).isoformat(),
             "mttr_seconds": inc["mttr_seconds"], "status": "resolved",
+            "resolution_status": "RESOLVED",
         }})
     es.bulk(operations=[op for d in inc_docs for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
     for idx in QUANTUMSTATE_INDICES:
@@ -534,9 +615,10 @@ if not es:
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_setup, tab_stream, tab_inject, tab_health, tab_cleanup = st.tabs([
-    "Setup", "Stream", "Inject", "Health", "Cleanup"
+tab_setup, tab_stream, tab_inject, tab_cleanup = st.tabs([
+    "Setup", "Stream", "Inject", "Cleanup"
 ])
+# tab_pipeline, tab_health = reserved for future use
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SETUP
@@ -714,88 +796,249 @@ with tab_inject:
                         st.error(str(e))
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HEALTH
+# PIPELINE (disabled)
 # ─────────────────────────────────────────────────────────────────────────────
-with tab_health:
-    st.markdown('<div class="section-header">Service health — latest values</div>', unsafe_allow_html=True)
-
-    cols = st.columns(4)
-    for col, svc in zip(cols, SERVICES):
-        with col:
-            mem = get_latest_metric(es, svc["name"], "memory_percent")
-            cpu = get_latest_metric(es, svc["name"], "cpu_percent")
-            err = get_latest_metric(es, svc["name"], "error_rate")
-            lat = get_latest_metric(es, svc["name"], "request_latency_ms")
-
-            if any([mem and mem >= 80, err and err >= 10, cpu and cpu >= 85]):
-                pill = '<span class="status-pill pill-crit">CRITICAL</span>'
-            elif any([mem and mem >= 65, err and err >= 3, cpu and cpu >= 65]):
-                pill = '<span class="status-pill pill-warn">WARNING</span>'
-            else:
-                pill = '<span class="status-pill pill-ok">HEALTHY</span>'
-
-            def row(label, value, warn, crit, suffix=""):
-                cls = metric_class(value, warn, crit)
-                return f"""<div class="metric-row">
-                  <span class="metric-label">{label}</span>
-                  <span class="metric-value {cls}">{fmt(value, suffix=suffix)}</span>
-                </div>"""
-
-            st.markdown(f"""
-            <div class="metric-card">
-              <div class="metric-card-title">service</div>
-              <div class="metric-card-service">{svc["name"]}</div>
-              <div class="metric-card-region">{svc["region"]}</div>
-              {pill}
-              {row("Memory",  mem,  65,  80,  "%")}
-              {row("CPU",     cpu,  65,  85,  "%")}
-              {row("Errors",  err,   3,  10,  "/min")}
-              {row("Latency", lat, 500,1000,  "ms")}
-            </div>
-            """, unsafe_allow_html=True)
-
-    # Log viewer
-    st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-header">Recent logs</div>', unsafe_allow_html=True)
-
-    sel_col, _ = st.columns([2, 5])
-    with sel_col:
-        selected = st.selectbox("Service", [s["name"] for s in SERVICES], label_visibility="collapsed")
-
-    try:
-        since = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
-        resp  = es.search(index="logs-quantumstate", body={
-            "size": 15,
-            "query": {"bool": {"filter": [
-                {"term": {"service": selected}},
-                {"range": {"@timestamp": {"gte": since}}},
-            ]}},
-            "sort": [{"@timestamp": "desc"}],
-        })
-        logs = [h["_source"] for h in resp["hits"]["hits"]]
-
-        if logs:
-            lines = ""
-            for log in logs:
-                ts    = log.get("@timestamp", "")[:19].replace("T", " ")
-                level = log.get("level", "INFO")
-                msg   = log.get("message", "")
-                lines += f"""<div class="log-line">
-                  <span class="log-ts">{ts}</span>
-                  <span class="log-level level-{level}">{level}</span>
-                  <span class="log-msg">{msg}</span>
-                </div>"""
-            st.markdown(f'<div style="background:#0D0D0D;border:1px solid #1A1A1A;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
-                        unsafe_allow_html=True)
-        else:
-            st.markdown('<p style="color:#475569;font-size:0.85rem">No logs in the last 30 minutes.</p>',
-                        unsafe_allow_html=True)
-    except Exception as e:
-        st.error(str(e))
-
-    st.markdown('<p style="color:#334155;font-size:0.72rem;margin-top:1rem">Refresh the page to update health values.</p>',
-                unsafe_allow_html=True)
-
+# with tab_pipeline:
+#     from orchestrator import (converse_stream, _write_incident, _get_es,
+#                                CASSANDRA_PROMPT, ARCHAEOLOGIST_PROMPT,
+#                                SURGEON_PROMPT, AGENT_IDS)
+# 
+#     st.markdown('<div class="section-header">Autonomous incident pipeline</div>', unsafe_allow_html=True)
+#     st.markdown("""
+#     <p style="color:#94A3B8;font-size:0.85rem;margin-bottom:1.5rem">
+#     Runs the full <strong style="color:#E2E8F0">Cassandra → Archaeologist → Surgeon</strong> chain
+#     via the Agent Builder streaming API. Watch each agent reason and respond in real time.
+#     Results are written to <code style="color:#06B6D4">incidents-quantumstate</code>.
+#     &nbsp;&nbsp;<strong style="color:#FBBF24">Tip:</strong> Inject a scenario first.
+#     </p>
+#     """, unsafe_allow_html=True)
+# 
+#     if "pr" not in st.session_state:
+#         st.session_state.pr = {}
+# 
+#     col_btn, col_clr, _ = st.columns([1, 1, 4])
+#     with col_btn:
+#         run_btn = st.button("▶  Run Pipeline", type="primary", use_container_width=True)
+#     with col_clr:
+#         if st.button("Clear", use_container_width=True, key="clr_pipe"):
+#             st.session_state.pr = {}
+#             st.rerun()
+# 
+#     st.markdown('<div style="height:0.8rem"></div>', unsafe_allow_html=True)
+# 
+#     def _stream_agent(agent_id, prompt, reasoning_slot):
+#         """
+#         Generator for st.write_stream(). Yields text chunks from the agent.
+#         Updates reasoning_slot with live thinking steps.
+#         Stores the full assembled text in a list passed by reference via closure.
+#         """
+#         collected = []
+#         for evt in converse_stream(agent_id, prompt):
+#             if evt["event"] == "reasoning":
+#                 reasoning_slot.markdown(
+#                     f'<p style="color:#475569;font-size:0.76rem;font-family:'
+#                     f'\'JetBrains Mono\',monospace;margin:2px 0">⟳ {evt["text"]}</p>',
+#                     unsafe_allow_html=True,
+#                 )
+#             elif evt["event"] == "message_chunk":
+#                 collected.append(evt["text"])
+#                 yield evt["text"]
+#             elif evt["event"] == "message_complete" and not collected:
+#                 # fallback: chunks weren't sent, use complete message
+#                 yield evt["text"]
+#                 collected.append(evt["text"])
+#             elif evt["event"] == "error":
+#                 raise RuntimeError(evt["text"])
+#         # stash for the caller to read back
+#         _stream_agent._last = "".join(collected)
+# 
+#     _stream_agent._last = ""
+# 
+#     # ── Show previous results if not re-running ───────────────────────────────
+#     pr = st.session_state.pr
+#     if pr and not run_btn:
+#         for key, name, role in [
+#             ("cassandra",     "Cassandra",     "Detection"),
+#             ("archaeologist", "Archaeologist", "Investigation"),
+#             ("surgeon",       "Surgeon",       "Remediation"),
+#         ]:
+#             out = pr.get(key, "")
+#             if out:
+#                 with st.expander(f"✓  {name} — {role}", expanded=False):
+#                     st.code(out, language=None)
+# 
+#         if pr.get("incident_id"):
+#             st.success(f"Incident written → `incidents-quantumstate / {pr['incident_id']}`")
+#         if pr.get("error"):
+#             st.error(f"Pipeline error: {pr['error']}")
+# 
+#     # ── Live streaming run ────────────────────────────────────────────────────
+#     if run_btn:
+#         st.session_state.pr = {}
+#         cassandra_out = arch_out = surg_out = ""
+# 
+#         with st.status("Running incident pipeline…", expanded=True) as pipe_status:
+#             try:
+#                 # ── Cassandra ─────────────────────────────────────────────────
+#                 pipe_status.update(label="Cassandra — scanning for anomalies…")
+#                 st.markdown(
+#                     '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
+#                     'margin:0 0 4px">CASSANDRA · Detection</p>',
+#                     unsafe_allow_html=True,
+#                 )
+#                 reasoning_slot = st.empty()
+#                 st.write_stream(_stream_agent(AGENT_IDS["cassandra"], CASSANDRA_PROMPT, reasoning_slot))
+#                 cassandra_out = _stream_agent._last
+#                 reasoning_slot.empty()
+#                 st.session_state.pr["cassandra"] = cassandra_out
+# 
+#                 if "anomaly_detected: false" in cassandra_out.lower():
+#                     pipe_status.update(label="No anomaly detected — system is healthy", state="complete")
+#                     st.info("Cassandra found no anomalies. Inject a scenario and try again.")
+#                 else:
+#                     # ── Archaeologist ──────────────────────────────────────────
+#                     st.divider()
+#                     pipe_status.update(label="Archaeologist — investigating root cause…")
+#                     st.markdown(
+#                         '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
+#                         'margin:0 0 4px">ARCHAEOLOGIST · Investigation</p>',
+#                         unsafe_allow_html=True,
+#                     )
+#                     reasoning_slot = st.empty()
+#                     arch_prompt = ARCHAEOLOGIST_PROMPT.format(cassandra_output=cassandra_out)
+#                     st.write_stream(_stream_agent(AGENT_IDS["archaeologist"], arch_prompt, reasoning_slot))
+#                     arch_out = _stream_agent._last
+#                     reasoning_slot.empty()
+#                     st.session_state.pr["archaeologist"] = arch_out
+# 
+#                     # ── Surgeon ────────────────────────────────────────────────
+#                     st.divider()
+#                     pipe_status.update(label="Surgeon — verifying recovery…")
+#                     st.markdown(
+#                         '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
+#                         'margin:0 0 4px">SURGEON · Remediation</p>',
+#                         unsafe_allow_html=True,
+#                     )
+#                     reasoning_slot = st.empty()
+#                     surg_prompt = SURGEON_PROMPT.format(
+#                         cassandra_output=cassandra_out,
+#                         archaeologist_output=arch_out,
+#                     )
+#                     st.write_stream(_stream_agent(AGENT_IDS["surgeon"], surg_prompt, reasoning_slot))
+#                     surg_out = _stream_agent._last
+#                     reasoning_slot.empty()
+#                     st.session_state.pr["surgeon"] = surg_out
+# 
+#                     # ── Write incident ─────────────────────────────────────────
+#                     st.divider()
+#                     pipe_status.update(label="Writing incident to Elasticsearch…")
+#                     report = {
+#                         "cassandra_raw":     cassandra_out,
+#                         "archaeologist_raw": arch_out,
+#                         "surgeon_raw":       surg_out,
+#                     }
+#                     for line in surg_out.splitlines():
+#                         for field in ("service", "anomaly_type", "root_cause", "action_taken",
+#                                       "resolution_status", "mttr_estimate", "lessons_learned",
+#                                       "pipeline_summary"):
+#                             if line.lower().startswith(f"- {field}:"):
+#                                 report[field] = line.split(":", 1)[1].strip()
+# 
+#                     incident_id = _write_incident(_get_es(), report)
+#                     st.session_state.pr["incident_id"] = incident_id
+#                     pipe_status.update(label="Pipeline complete — incident resolved ✓", state="complete")
+# 
+#             except Exception as exc:
+#                 st.session_state.pr["error"] = str(exc)
+#                 pipe_status.update(label=f"Pipeline failed: {exc}", state="error")
+#                 st.error(str(exc))
+# 
+#         st.rerun()
+# 
+# 
+# ─────────────────────────────────────────────────────────────────────────────
+# HEALTH (disabled)
+# ─────────────────────────────────────────────────────────────────────────────
+# with tab_health:
+#     st.markdown('<div class="section-header">Service health — latest values</div>', unsafe_allow_html=True)
+# 
+#     cols = st.columns(4)
+#     for col, svc in zip(cols, SERVICES):
+#         with col:
+#             mem = get_latest_metric(es, svc["name"], "memory_percent")
+#             cpu = get_latest_metric(es, svc["name"], "cpu_percent")
+#             err = get_latest_metric(es, svc["name"], "error_rate")
+#             lat = get_latest_metric(es, svc["name"], "request_latency_ms")
+# 
+#             if any([mem and mem >= 80, err and err >= 10, cpu and cpu >= 85]):
+#                 pill = '<span class="status-pill pill-crit">CRITICAL</span>'
+#             elif any([mem and mem >= 65, err and err >= 3, cpu and cpu >= 65]):
+#                 pill = '<span class="status-pill pill-warn">WARNING</span>'
+#             else:
+#                 pill = '<span class="status-pill pill-ok">HEALTHY</span>'
+# 
+#             def row(label, value, warn, crit, suffix=""):
+#                 cls = metric_class(value, warn, crit)
+#                 return f"""<div class="metric-row">
+#                   <span class="metric-label">{label}</span>
+#                   <span class="metric-value {cls}">{fmt(value, suffix=suffix)}</span>
+#                 </div>"""
+# 
+#             st.markdown(f"""
+#             <div class="metric-card">
+#               <div class="metric-card-title">service</div>
+#               <div class="metric-card-service">{svc["name"]}</div>
+#               <div class="metric-card-region">{svc["region"]}</div>
+#               {pill}
+#               {row("Memory",  mem,  65,  80,  "%")}
+#               {row("CPU",     cpu,  65,  85,  "%")}
+#               {row("Errors",  err,   3,  10,  "/min")}
+#               {row("Latency", lat, 500,1000,  "ms")}
+#             </div>
+#             """, unsafe_allow_html=True)
+# 
+#     # Log viewer
+#     st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
+#     st.markdown('<div class="section-header">Recent logs</div>', unsafe_allow_html=True)
+# 
+#     sel_col, _ = st.columns([2, 5])
+#     with sel_col:
+#         selected = st.selectbox("Service", [s["name"] for s in SERVICES], label_visibility="collapsed")
+# 
+#     try:
+#         since = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+#         resp  = es.search(index="logs-quantumstate", body={
+#             "size": 15,
+#             "query": {"bool": {"filter": [
+#                 {"term": {"service": selected}},
+#                 {"range": {"@timestamp": {"gte": since}}},
+#             ]}},
+#             "sort": [{"@timestamp": "desc"}],
+#         })
+#         logs = [h["_source"] for h in resp["hits"]["hits"]]
+# 
+#         if logs:
+#             lines = ""
+#             for log in logs:
+#                 ts    = log.get("@timestamp", "")[:19].replace("T", " ")
+#                 level = log.get("level", "INFO")
+#                 msg   = log.get("message", "")
+#                 lines += f"""<div class="log-line">
+#                   <span class="log-ts">{ts}</span>
+#                   <span class="log-level level-{level}">{level}</span>
+#                   <span class="log-msg">{msg}</span>
+#                 </div>"""
+#             st.markdown(f'<div style="background:#060C18;border:1px solid #1A2640;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
+#                         unsafe_allow_html=True)
+#         else:
+#             st.markdown('<p style="color:#475569;font-size:0.85rem">No logs in the last 30 minutes.</p>',
+#                         unsafe_allow_html=True)
+#     except Exception as e:
+#         st.error(str(e))
+# 
+#     st.markdown('<p style="color:#334155;font-size:0.72rem;margin-top:1rem">Refresh the page to update health values.</p>',
+#                 unsafe_allow_html=True)
+# 
 # ─────────────────────────────────────────────────────────────────────────────
 # CLEANUP
 # ─────────────────────────────────────────────────────────────────────────────

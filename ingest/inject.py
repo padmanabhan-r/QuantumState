@@ -64,9 +64,9 @@ def inject_memory_leak(es: Elasticsearch):
     start   = now - timedelta(minutes=MINUTES)
 
     docs = []
-    for i in range(MINUTES):
-        t = start + timedelta(minutes=i)
-        progress = i / MINUTES  # 0.0 → 1.0
+    for i in range(MINUTES * 3):  # 3 data points per minute for stronger signal
+        t = start + timedelta(seconds=i * 20)
+        progress = (i / 3) / MINUTES  # 0.0 → 1.0
 
         # Memory climbs from 55% to 89%
         memory = 55 + (34 * progress) + random.gauss(0, 1)
