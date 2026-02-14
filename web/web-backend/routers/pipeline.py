@@ -92,33 +92,42 @@ def _pipeline_generator():
         yield _event("pipeline_complete", {"text": "No anomaly detected — system is healthy. Pipeline stopped."})
         return
 
-    # Dedup: skip if an incident for the same service was already written in the last 30 min
-    import re as _re
+    # Dedup: skip only if ALL detected services were already handled in the last 30 min
     from elastic import get_es as _get_es
-    _svc_match = _re.search(r"affected[_\s]?service[:\*\s]+([a-zA-Z0-9_-]+)", cassandra_output, _re.IGNORECASE)
-    _detected_service = _svc_match.group(1).strip() if _svc_match else ""
-    if _detected_service:
+    _KNOWN_SERVICES = ["payment-service", "checkout-service", "auth-service", "inventory-service"]
+    _detected_services = [s for s in _KNOWN_SERVICES if s in cassandra_output.lower()]
+    if _detected_services:
         try:
             _es = _get_es()
-            _recent = _es.search(index="incidents-quantumstate*", body={
-                "size": 1,
-                "query": {
-                    "bool": {
-                        "filter": [
-                            {"term": {"service": _detected_service}},
-                            {"term": {"pipeline_run": True}},
-                            {"range": {"@timestamp": {"gte": "now-30m"}}},
-                        ]
-                    }
-                },
-                "sort": [{"@timestamp": "desc"}],
-            })
-            if _recent["hits"]["total"]["value"] > 0:
-                _last_ts = _recent["hits"]["hits"][0]["_source"].get("@timestamp", "")
+            _new_services = []
+            _handled_services = []
+            for _svc in _detected_services:
+                _recent = _es.search(index="incidents-quantumstate*", body={
+                    "size": 1,
+                    "query": {
+                        "bool": {
+                            "filter": [
+                                {"term": {"service": _svc}},
+                                {"term": {"pipeline_run": True}},
+                                {"range": {"@timestamp": {"gte": "now-30m"}}},
+                            ]
+                        }
+                    },
+                    "sort": [{"@timestamp": "desc"}],
+                })
+                if _recent["hits"]["total"]["value"] > 0:
+                    _last_ts = _recent["hits"]["hits"][0]["_source"].get("@timestamp", "")
+                    _handled_services.append(f"{_svc} (handled {_last_ts[:16].replace('T',' ')} UTC)")
+                else:
+                    _new_services.append(_svc)
+
+            if not _new_services:
+                # All detected services are in cooldown — skip
                 yield _event("pipeline_complete", {
-                    "text": f"Skipped — {_detected_service} incident already handled {_last_ts[:16].replace('T',' ')} UTC (cooldown 30 min)"
+                    "text": f"Skipped — all incidents already handled within cooldown: {', '.join(_handled_services)}"
                 })
                 return
+            # Some services are new — proceed (Surgeon will write for all detected)
         except Exception:
             pass  # if check fails, continue with pipeline
 
