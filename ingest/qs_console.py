@@ -37,8 +37,31 @@ st.markdown("""
   /* Import font */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+  /* ── Design tokens (matching web app) ── */
+  :root {
+    --bg-page:    #060C18;
+    --bg-card:    #0B1222;
+    --bg-card-2:  #0F1829;
+    --border:     #1A2640;
+    --border-2:   #223050;
+    --blue:       #3B82F6;
+    --blue-glow:  rgba(59,130,246,0.15);
+    --cyan:       #06B6D4;
+    --cyan-glow:  rgba(6,182,212,0.15);
+    --green:      #10B981;
+    --green-glow: rgba(16,185,129,0.12);
+    --amber:      #F59E0B;
+    --amber-glow: rgba(245,158,11,0.12);
+    --red:        #F87171;
+    --red-glow:   rgba(248,113,113,0.12);
+    --text:       #F1F5F9;
+    --text-muted: #64748B;
+    --text-dim:   #94A3B8;
+  }
+
   html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
+    background-color: var(--bg-page) !important;
   }
 
   /* Hide default Streamlit chrome */
@@ -51,19 +74,24 @@ st.markdown("""
     align-items: center;
     justify-content: space-between;
     padding: 0 0 1.5rem 0;
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 1.5rem;
   }
   .qs-logo {
     font-size: 1.4rem;
     font-weight: 700;
     letter-spacing: -0.5px;
-    color: #F8FAFC;
+    color: var(--text);
   }
-  .qs-logo span { color: #FF6B00; }
+  .qs-logo span {
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
   .qs-tagline {
     font-size: 0.75rem;
-    color: #64748B;
+    color: var(--text-muted);
     font-weight: 400;
     margin-top: 2px;
   }
@@ -74,35 +102,36 @@ st.markdown("""
     border-radius: 20px;
     font-weight: 500;
   }
-  .qs-conn-ok   { background: #052e16; color: #4ADE80; border: 1px solid #166534; }
-  .qs-conn-fail { background: #2d0f0f; color: #f87171; border: 1px solid #7f1d1d; }
+  .qs-conn-ok   { background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .qs-conn-fail { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
 
   /* ── Tabs ── */
   .stTabs [data-baseweb="tab-list"] {
     gap: 0;
-    background: #111111;
+    background: var(--bg-card);
     border-radius: 10px;
     padding: 4px;
-    border: 1px solid #1A1A1A;
+    border: 1px solid var(--border);
   }
   .stTabs [data-baseweb="tab"] {
     border-radius: 7px;
     padding: 8px 20px;
     font-size: 0.82rem;
     font-weight: 500;
-    color: #64748B;
+    color: var(--text-muted);
     background: transparent;
     border: none;
   }
   .stTabs [aria-selected="true"] {
-    background: #1A1A1A !important;
-    color: #F1F5F9 !important;
+    background: rgba(59,130,246,0.12) !important;
+    color: var(--blue) !important;
+    border: 1px solid rgba(59,130,246,0.25) !important;
   }
 
   /* ── Metric cards ── */
   .metric-card {
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.2rem 1.4rem;
     height: 100%;
@@ -112,13 +141,13 @@ st.markdown("""
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #64748B;
+    color: var(--text-muted);
     margin-bottom: 0.6rem;
   }
   .metric-card-service {
     font-size: 0.95rem;
     font-weight: 600;
-    color: #F1F5F9;
+    color: var(--text);
     margin-bottom: 0.2rem;
   }
   .metric-card-region {
@@ -132,20 +161,20 @@ st.markdown("""
     justify-content: space-between;
     align-items: center;
     padding: 5px 0;
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid var(--border);
     font-size: 0.8rem;
   }
   .metric-row:last-child { border-bottom: none; }
-  .metric-label { color: #94A3B8; }
+  .metric-label { color: var(--text-dim); }
   .metric-value {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.82rem;
     font-weight: 500;
     color: #E2E8F0;
   }
-  .metric-value.warn  { color: #FBBF24; }
-  .metric-value.crit  { color: #F87171; }
-  .metric-value.ok    { color: #4ADE80; }
+  .metric-value.warn  { color: var(--amber); }
+  .metric-value.crit  { color: var(--red); }
+  .metric-value.ok    { color: var(--green); }
 
   /* Status pill */
   .status-pill {
@@ -158,14 +187,14 @@ st.markdown("""
     letter-spacing: 0.05em;
     margin-bottom: 0.8rem;
   }
-  .pill-ok   { background: #052e16; color: #4ADE80; border: 1px solid #166534; }
-  .pill-warn { background: #1c1400; color: #fbbf24; border: 1px solid #854d0e; }
-  .pill-crit { background: #2d0f0f; color: #f87171; border: 1px solid #7f1d1d; }
+  .pill-ok   { background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .pill-warn { background: rgba(245,158,11,0.1); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+  .pill-crit { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
 
   /* ── Inject scenario cards ── */
   .scenario-card {
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.4rem;
     min-height: 220px;
@@ -173,18 +202,18 @@ st.markdown("""
   .scenario-title {
     font-size: 1rem;
     font-weight: 600;
-    color: #F1F5F9;
+    color: var(--text);
     margin-bottom: 0.3rem;
   }
   .scenario-service {
     font-size: 0.72rem;
     font-family: 'JetBrains Mono', monospace;
-    color: #FF6B00;
+    color: var(--cyan);
     margin-bottom: 0.8rem;
   }
   .scenario-desc {
     font-size: 0.8rem;
-    color: #94A3B8;
+    color: var(--text-dim);
     line-height: 1.6;
     margin-bottom: 1rem;
   }
@@ -195,8 +224,9 @@ st.markdown("""
     padding: 2px 8px;
     border-radius: 4px;
     margin-right: 4px;
-    background: #1A1A1A;
-    color: #94A3B8;
+    background: rgba(59,130,246,0.08);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
     font-family: 'JetBrains Mono', monospace;
   }
 
@@ -211,13 +241,13 @@ st.markdown("""
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.76rem;
   }
-  .log-line:hover { background: #1A1A1A; }
+  .log-line:hover { background: var(--border); }
   .log-ts    { color: #475569; flex-shrink: 0; }
   .log-level { font-weight: 600; flex-shrink: 0; min-width: 60px; }
   .log-msg   { color: #CBD5E1; flex: 1; }
-  .level-INFO     { color: #60A5FA; }
-  .level-WARN, .level-WARNING { color: #FBBF24; }
-  .level-ERROR    { color: #F87171; }
+  .level-INFO     { color: var(--blue); }
+  .level-WARN, .level-WARNING { color: var(--amber); }
+  .level-ERROR    { color: var(--red); }
   .level-CRITICAL { color: #C084FC; }
 
   /* ── Section header ── */
@@ -229,7 +259,7 @@ st.markdown("""
     color: #475569;
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid #1A1A1A;
+    border-bottom: 1px solid var(--border);
   }
 
   /* ── Index table ── */
@@ -240,17 +270,17 @@ st.markdown("""
     padding: 8px 12px;
     border-radius: 8px;
     margin-bottom: 4px;
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     font-size: 0.8rem;
   }
   .idx-name {
     font-family: 'JetBrains Mono', monospace;
     color: #E2E8F0;
   }
-  .idx-count { color: #64748B; font-size: 0.75rem; }
-  .idx-qs    { border-left: 3px solid #FF6B00; }
-  .idx-other { border-left: 3px solid #374151; }
+  .idx-count { color: var(--text-muted); font-size: 0.75rem; }
+  .idx-qs    { border-left: 3px solid var(--blue); }
+  .idx-other { border-left: 3px solid var(--border-2); }
 
   /* ── Streamlit button overrides ── */
   .stButton > button {
@@ -261,29 +291,29 @@ st.markdown("""
     border: 1px solid transparent;
   }
   .stButton > button[kind="primary"] {
-    background: #FF6B00;
-    color: #0A0A0A;
-    border-color: #FF6B00;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    color: #fff;
+    border-color: transparent;
   }
   .stButton > button[kind="primary"]:hover {
-    background: #FF8C33;
-    border-color: #FF8C33;
+    opacity: 0.88;
+    box-shadow: 0 0 16px var(--blue-glow);
   }
 
   /* Progress bar */
-  .stProgress > div > div { background: #FF6B00; }
+  .stProgress > div > div { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
 
   /* ── Pipeline step cards ── */
   .pipeline-step {
-    background: #111111;
-    border: 1px solid #1A1A1A;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.2rem 1.4rem;
     margin-bottom: 0.8rem;
     position: relative;
   }
-  .pipeline-step.active  { border-color: #FF6B00; }
-  .pipeline-step.done    { border-color: #166534; }
+  .pipeline-step.active  { border-color: var(--blue); box-shadow: 0 0 16px var(--blue-glow); }
+  .pipeline-step.done    { border-color: rgba(16,185,129,0.4); }
   .pipeline-step.waiting { opacity: 0.45; }
   .pipeline-step-header {
     display: flex;
@@ -294,41 +324,40 @@ st.markdown("""
   .pipeline-step-name {
     font-size: 0.88rem;
     font-weight: 600;
-    color: #F1F5F9;
+    color: var(--text);
   }
   .pipeline-step-role {
     font-size: 0.72rem;
-    color: #64748B;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.07em;
   }
   .pipeline-output {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.76rem;
-    color: #94A3B8;
+    color: var(--text-dim);
     white-space: pre-wrap;
     line-height: 1.6;
-    background: #0D0D0D;
+    background: var(--bg-page);
     border-radius: 8px;
     padding: 0.8rem 1rem;
     margin-top: 0.6rem;
     max-height: 280px;
     overflow-y: auto;
-    border: 1px solid #1A1A1A;
+    border: 1px solid var(--border);
   }
   .pipeline-connector {
     width: 2px;
     height: 20px;
-    background: #1A1A1A;
+    background: var(--border);
     margin: 0 auto 0.8rem;
   }
 
-
   /* Alerts */
-  .stSuccess { background: #052e16; border: 1px solid #166534; border-radius: 8px; }
-  .stError   { background: #2d0f0f; border: 1px solid #7f1d1d; border-radius: 8px; }
-  .stInfo    { background: #0c1a2e; border: 1px solid #1e3a5f; border-radius: 8px; }
-  .stWarning { background: #1c1400; border: 1px solid #854d0e; border-radius: 8px; }
+  .stSuccess { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; }
+  .stError   { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3); border-radius: 8px; }
+  .stInfo    { background: rgba(59,130,246,0.08);  border: 1px solid rgba(59,130,246,0.3);  border-radius: 8px; }
+  .stWarning { background: rgba(245,158,11,0.08);  border: 1px solid rgba(245,158,11,0.3);  border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -529,6 +558,7 @@ def run_setup(es, progress, status):
             "root_cause": inc["root_cause"], "actions_taken": inc["actions_taken"],
             "resolved_at": (ts + timedelta(seconds=inc["mttr_seconds"])).isoformat(),
             "mttr_seconds": inc["mttr_seconds"], "status": "resolved",
+            "resolution_status": "RESOLVED",
         }})
     es.bulk(operations=[op for d in inc_docs for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
     for idx in QUANTUMSTATE_INDICES:
@@ -777,7 +807,7 @@ with tab_pipeline:
     <p style="color:#94A3B8;font-size:0.85rem;margin-bottom:1.5rem">
     Runs the full <strong style="color:#E2E8F0">Cassandra → Archaeologist → Surgeon</strong> chain
     via the Agent Builder streaming API. Watch each agent reason and respond in real time.
-    Results are written to <code style="color:#FF6B00">incidents-quantumstate</code>.
+    Results are written to <code style="color:#06B6D4">incidents-quantumstate</code>.
     &nbsp;&nbsp;<strong style="color:#FBBF24">Tip:</strong> Inject a scenario first.
     </p>
     """, unsafe_allow_html=True)
@@ -851,7 +881,7 @@ with tab_pipeline:
                 # ── Cassandra ─────────────────────────────────────────────────
                 pipe_status.update(label="Cassandra — scanning for anomalies…")
                 st.markdown(
-                    '<p style="font-size:0.8rem;font-weight:600;color:#FF6B00;'
+                    '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
                     'margin:0 0 4px">CASSANDRA · Detection</p>',
                     unsafe_allow_html=True,
                 )
@@ -869,7 +899,7 @@ with tab_pipeline:
                     st.divider()
                     pipe_status.update(label="Archaeologist — investigating root cause…")
                     st.markdown(
-                        '<p style="font-size:0.8rem;font-weight:600;color:#FF6B00;'
+                        '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
                         'margin:0 0 4px">ARCHAEOLOGIST · Investigation</p>',
                         unsafe_allow_html=True,
                     )
@@ -884,7 +914,7 @@ with tab_pipeline:
                     st.divider()
                     pipe_status.update(label="Surgeon — verifying recovery…")
                     st.markdown(
-                        '<p style="font-size:0.8rem;font-weight:600;color:#FF6B00;'
+                        '<p style="font-size:0.8rem;font-weight:600;color:#06B6D4;'
                         'margin:0 0 4px">SURGEON · Remediation</p>',
                         unsafe_allow_html=True,
                     )
@@ -997,7 +1027,7 @@ with tab_health:
                   <span class="log-level level-{level}">{level}</span>
                   <span class="log-msg">{msg}</span>
                 </div>"""
-            st.markdown(f'<div style="background:#0D0D0D;border:1px solid #1A1A1A;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
+            st.markdown(f'<div style="background:#060C18;border:1px solid #1A2640;border-radius:10px;padding:0.8rem 0.5rem">{lines}</div>',
                         unsafe_allow_html=True)
         else:
             st.markdown('<p style="color:#475569;font-size:0.85rem">No logs in the last 30 minutes.</p>',

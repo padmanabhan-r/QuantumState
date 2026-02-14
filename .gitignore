@@ -10,13 +10,8 @@ wheels/
 .venv
 .env
 
-# quantumstate_implementation_plan.md
-ElasticSearch_Python_Course-main/
-agent-builder-docs/
-sample-data/
 notebooks/
 implementation/
-sample-project/
 notes/
-workflows-docs/
-elastic-docs/
+.backup/
+

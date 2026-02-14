@@ -209,7 +209,7 @@ def _write_incident(es: Elasticsearch, report: dict) -> str:
         "anomaly_type":         report.get("anomaly_type", "unknown"),
         "root_cause":           report.get("root_cause", ""),
         "action_taken":         report.get("action_taken", ""),
-        "resolution_status":    report.get("resolution_status", "UNKNOWN"),
+        "resolution_status":    report.get("resolution_status", "MONITORING"),
         "mttr_estimate":        report.get("mttr_estimate", ""),
         "lessons_learned":      report.get("lessons_learned", ""),
         "pipeline_summary":     report.get("pipeline_summary", ""),
