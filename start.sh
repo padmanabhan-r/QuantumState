@@ -2,8 +2,7 @@
 # QuantumState — start frontend + backend
 set -e
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WEB="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> QuantumState"
 echo "    Root: $ROOT"
@@ -16,19 +15,20 @@ fi
 
 # Backend
 echo "==> Backend  →  http://localhost:8000"
-cd "$WEB/web-backend"
+cd "$ROOT/backend"
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
 
 # Frontend
 echo "==> Frontend →  http://localhost:8080"
-cd "$WEB/web-frontend"
+cd "$ROOT/frontend"
 npm run dev &
 FRONTEND_PID=$!
 
 echo ""
 echo "  Landing:  http://localhost:8080"
 echo "  Console:  http://localhost:8080/console"
+echo "  Sim:      http://localhost:8080/sim"
 echo "  API:      http://localhost:8000"
 echo ""
 echo "  Ctrl+C to stop."

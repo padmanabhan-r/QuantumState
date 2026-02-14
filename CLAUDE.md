@@ -29,19 +29,14 @@ python elastic-setup/templates/create_templates.py
 python data/generators/generate_all.py
 ```
 
-### Running Agents
+### Running the Application
 ```bash
-# Run individual agents (for testing)
-cd agents
-python cassandra_agent.py        # Detection agent
-python archaeologist_agent.py    # Investigation agent
-python tactician_agent.py        # Decision agent
+# Start frontend + backend together
+./start.sh
 
-# Run full agent swarm
-python agents/orchestrator.py
-
-# Run demo (generates data + runs swarm)
-./demo/run_demo.sh
+# Or start individually:
+cd backend && uvicorn main:app --port 8000 --reload
+cd frontend && npm run dev
 ```
 
 ## Architecture
@@ -142,19 +137,18 @@ For local Docker deployments, use `ELASTIC_URL` instead of `CLOUD_ID`.
 
 ```
 quantumstate/
-├── agents/              # Agent implementations
-│   ├── base_agent.py   # Base class for all agents
-│   ├── cassandra_agent.py
-│   ├── archaeologist_agent.py
-│   ├── tactician_agent.py
-│   └── orchestrator.py # Agent chain coordinator
-├── data/
-│   └── generators/     # Synthetic data generation
-├── elastic-setup/
-│   ├── templates/      # Index template creation
-│   └── queries/        # ES|QL query library
-├── demo/               # Demo scripts and documentation
-└── workflows/          # Elastic Workflows (when implemented)
+├── frontend/            # React + Vite + TypeScript UI
+│   └── src/
+│       ├── pages/       # Index, Console, SimControl
+│       └── components/  # console/, landing/, ui/
+├── backend/             # FastAPI Python backend
+│   ├── main.py
+│   ├── elastic.py       # Shared ES client
+│   ├── inject.py        # Anomaly injection functions
+│   ├── orchestrator.py  # Agent Builder converse_stream
+│   └── routers/         # incidents, health, pipeline, chat, sim
+├── start.sh             # Starts both frontend + backend
+└── .env                 # Elastic credentials
 ```
 
 ## Testing Strategy

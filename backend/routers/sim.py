@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "ingest"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from inject import inject_memory_leak, inject_deployment_rollback, inject_error_spike
 from elastic import get_es
 

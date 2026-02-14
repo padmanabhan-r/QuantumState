@@ -6,10 +6,10 @@ from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 router = APIRouter(tags=["pipeline"])
 
@@ -44,20 +44,10 @@ If no anomaly is detected, set anomaly_detected to false and stop.
 
 
 def _get_converse_stream():
-    """Import converse_stream from ingest/orchestrator.py."""
-    try:
-        from ingest.orchestrator import converse_stream
-        return converse_stream
-    except ImportError:
-        # Try direct path
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "orchestrator",
-            os.path.join(os.path.dirname(__file__), "..", "..", "..", "ingest", "orchestrator.py"),
-        )
-        mod = importlib.util.load_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod.converse_stream
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from orchestrator import converse_stream
+    return converse_stream
 
 
 def _event(name: str, data: dict) -> str:
