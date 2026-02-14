@@ -273,6 +273,57 @@ st.markdown("""
   /* Progress bar */
   .stProgress > div > div { background: #FF6B00; }
 
+  /* ── Pipeline step cards ── */
+  .pipeline-step {
+    background: #111111;
+    border: 1px solid #1A1A1A;
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 0.8rem;
+    position: relative;
+  }
+  .pipeline-step.active  { border-color: #FF6B00; }
+  .pipeline-step.done    { border-color: #166534; }
+  .pipeline-step.waiting { opacity: 0.45; }
+  .pipeline-step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+  .pipeline-step-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #F1F5F9;
+  }
+  .pipeline-step-role {
+    font-size: 0.72rem;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .pipeline-output {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    color: #94A3B8;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    background: #0D0D0D;
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-top: 0.6rem;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid #1A1A1A;
+  }
+  .pipeline-connector {
+    width: 2px;
+    height: 20px;
+    background: #1A1A1A;
+    margin: 0 auto 0.8rem;
+  }
+
+
   /* Alerts */
   .stSuccess { background: #052e16; border: 1px solid #166534; border-radius: 8px; }
   .stError   { background: #2d0f0f; border: 1px solid #7f1d1d; border-radius: 8px; }
@@ -534,8 +585,8 @@ if not es:
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_setup, tab_stream, tab_inject, tab_health, tab_cleanup = st.tabs([
-    "Setup", "Stream", "Inject", "Health", "Cleanup"
+tab_setup, tab_stream, tab_inject, tab_pipeline, tab_health, tab_cleanup = st.tabs([
+    "Setup", "Stream", "Inject", "Pipeline", "Health", "Cleanup"
 ])
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -712,6 +763,167 @@ with tab_inject:
                         st.success(f"✓ {s['title']} injected — run Cassandra now.")
                     except Exception as e:
                         st.error(str(e))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PIPELINE
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_pipeline:
+    from orchestrator import (converse_stream, _write_incident, _get_es,
+                               CASSANDRA_PROMPT, ARCHAEOLOGIST_PROMPT,
+                               SURGEON_PROMPT, AGENT_IDS)
+
+    st.markdown('<div class="section-header">Autonomous incident pipeline</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <p style="color:#94A3B8;font-size:0.85rem;margin-bottom:1.5rem">
+    Runs the full <strong style="color:#E2E8F0">Cassandra → Archaeologist → Surgeon</strong> chain
+    via the Agent Builder streaming API. Watch each agent reason and respond in real time.
+    Results are written to <code style="color:#FF6B00">incidents-quantumstate</code>.
+    &nbsp;&nbsp;<strong style="color:#FBBF24">Tip:</strong> Inject a scenario first.
+    </p>
+    """, unsafe_allow_html=True)
+
+    if "pr" not in st.session_state:
+        st.session_state.pr = {}
+
+    col_btn, col_clr, _ = st.columns([1, 1, 4])
+    with col_btn:
+        run_btn = st.button("▶  Run Pipeline", type="primary", use_container_width=True)
+    with col_clr:
+        if st.button("Clear", use_container_width=True, key="clr_pipe"):
+            st.session_state.pr = {}
+            st.rerun()
+
+    st.markdown('<div style="height:0.8rem"></div>', unsafe_allow_html=True)
+
+    def _stream_agent(agent_id, prompt, reasoning_slot):
+        """
+        Generator for st.write_stream(). Yields text chunks from the agent.
+        Updates reasoning_slot with live thinking steps.
+        Stores the full assembled text in a list passed by reference via closure.
+        """
+        collected = []
+        for evt in converse_stream(agent_id, prompt):
+            if evt["event"] == "reasoning":
+                reasoning_slot.markdown(
+                    f'<p style="color:#475569;font-size:0.76rem;font-family:'
+                    f'\'JetBrains Mono\',monospace;margin:2px 0">⟳ {evt["text"]}</p>',
+                    unsafe_allow_html=True,
+                )
+            elif evt["event"] == "message_chunk":
+                collected.append(evt["text"])
+                yield evt["text"]
+            elif evt["event"] == "message_complete" and not collected:
+                # fallback: chunks weren't sent, use complete message
+                yield evt["text"]
+                collected.append(evt["text"])
+            elif evt["event"] == "error":
+                raise RuntimeError(evt["text"])
+        # stash for the caller to read back
+        _stream_agent._last = "".join(collected)
+
+    _stream_agent._last = ""
+
+    # ── Show previous results if not re-running ───────────────────────────────
+    pr = st.session_state.pr
+    if pr and not run_btn:
+        for key, name, role in [
+            ("cassandra",     "Cassandra",     "Detection"),
+            ("archaeologist", "Archaeologist", "Investigation"),
+            ("surgeon",       "Surgeon",       "Remediation"),
+        ]:
+            out = pr.get(key, "")
+            if out:
+                with st.expander(f"✓  {name} — {role}", expanded=False):
+                    st.code(out, language=None)
+
+        if pr.get("incident_id"):
+            st.success(f"Incident written → `incidents-quantumstate / {pr['incident_id']}`")
+        if pr.get("error"):
+            st.error(f"Pipeline error: {pr['error']}")
+
+    # ── Live streaming run ────────────────────────────────────────────────────
+    if run_btn:
+        st.session_state.pr = {}
+        cassandra_out = arch_out = surg_out = ""
+
+        with st.status("Running incident pipeline…", expanded=True) as pipe_status:
+            try:
+                # ── Cassandra ─────────────────────────────────────────────────
+                pipe_status.update(label="Cassandra — scanning for anomalies…")
+                st.markdown(
+                    '<p style="font-size:0.8rem;font-weight:600;color:#FF6B00;'
+                    'margin:0 0 4px">CASSANDRA · Detection</p>',
+                    unsafe_allow_html=True,
+                )
+                reasoning_slot = st.empty()
+                st.write_stream(_stream_agent(AGENT_IDS["cassandra"], CASSANDRA_PROMPT, reasoning_slot))
+                cassandra_out = _stream_agent._last
+                reasoning_slot.empty()
+                st.session_state.pr["cassandra"] = cassandra_out
+
+                if "anomaly_detected: false" in cassandra_out.lower():
+                    pipe_status.update(label="No anomaly detected — system is healthy", state="complete")
+                    st.info("Cassandra found no anomalies. Inject a scenario and try again.")
+                else:
+                    # ── Archaeologist ──────────────────────────────────────────
+                    st.divider()
+                    pipe_status.update(label="Archaeologist — investigating root cause…")
+                    st.markdown(
+                        '<p style="font-size:0.8rem;font-weight:600;color:#FF6B00;'
+                        'margin:0 0 4px">ARCHAEOLOGIST · Investigation</p>',
+                        unsafe_allow_html=True,
+                    )
+                    reasoning_slot = st.empty()
+                    arch_prompt = ARCHAEOLOGIST_PROMPT.format(cassandra_output=cassandra_out)
+                    st.write_stream(_stream_agent(AGENT_IDS["archaeologist"], arch_prompt, reasoning_slot))
+                    arch_out = _stream_agent._last
+                    reasoning_slot.empty()
+                    st.session_state.pr["archaeologist"] = arch_out
+
+                    # ── Surgeon ────────────────────────────────────────────────
+                    st.divider()
+                    pipe_status.update(label="Surgeon — verifying recovery…")
+                    st.markdown(
+                        '<p style="font-size:0.8rem;font-weight:600;color:#FF6B00;'
+                        'margin:0 0 4px">SURGEON · Remediation</p>',
+                        unsafe_allow_html=True,
+                    )
+                    reasoning_slot = st.empty()
+                    surg_prompt = SURGEON_PROMPT.format(
+                        cassandra_output=cassandra_out,
+                        archaeologist_output=arch_out,
+                    )
+                    st.write_stream(_stream_agent(AGENT_IDS["surgeon"], surg_prompt, reasoning_slot))
+                    surg_out = _stream_agent._last
+                    reasoning_slot.empty()
+                    st.session_state.pr["surgeon"] = surg_out
+
+                    # ── Write incident ─────────────────────────────────────────
+                    st.divider()
+                    pipe_status.update(label="Writing incident to Elasticsearch…")
+                    report = {
+                        "cassandra_raw":     cassandra_out,
+                        "archaeologist_raw": arch_out,
+                        "surgeon_raw":       surg_out,
+                    }
+                    for line in surg_out.splitlines():
+                        for field in ("service", "anomaly_type", "root_cause", "action_taken",
+                                      "resolution_status", "mttr_estimate", "lessons_learned",
+                                      "pipeline_summary"):
+                            if line.lower().startswith(f"- {field}:"):
+                                report[field] = line.split(":", 1)[1].strip()
+
+                    incident_id = _write_incident(_get_es(), report)
+                    st.session_state.pr["incident_id"] = incident_id
+                    pipe_status.update(label="Pipeline complete — incident resolved ✓", state="complete")
+
+            except Exception as exc:
+                st.session_state.pr["error"] = str(exc)
+                pipe_status.update(label=f"Pipeline failed: {exc}", state="error")
+                st.error(str(exc))
+
+        st.rerun()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HEALTH
