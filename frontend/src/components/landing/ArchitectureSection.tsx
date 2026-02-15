@@ -1,13 +1,15 @@
 import { motion } from "framer-motion";
 import ElasticIcon from "@/components/ElasticIcon";
 
-const liveAgents    = ["Cassandra", "Archaeologist", "Surgeon"];
-const roadmapAgents = ["Tactician", "Diplomat", "Guardian"];
+const liveAgents    = ["Cassandra", "Archaeologist", "Surgeon", "Guardian"];
+const roadmapAgents = ["Tactician", "Diplomat"];
 const indices = [
-  { label: "Service Metrics",    desc: "CPU, memory, error rate, latency — time-series per service" },
-  { label: "Application Logs",   desc: "Structured logs with severity, trace IDs and stack traces" },
-  { label: "Incident Reports",   desc: "Resolved incidents with MTTR, root cause and audit trail" },
-  { label: "Agent Decisions",    desc: "Every agent action logged for compliance and post-mortem" },
+  { label: "Service Metrics",      desc: "CPU, memory, error rate, latency — time-series per service" },
+  { label: "Application Logs",     desc: "Structured logs with severity, trace IDs and stack traces" },
+  { label: "Incident Reports",     desc: "Resolved incidents with MTTR, root cause and audit trail" },
+  { label: "Agent Decisions",      desc: "Every agent action logged for compliance and post-mortem" },
+  { label: "Remediation Actions",  desc: "Executed fixes with exec_id, risk level, and workflow status" },
+  { label: "Remediation Results",  desc: "Guardian verdicts — RESOLVED / ESCALATE with MTTR evidence" },
 ];
 
 const ArchitectureSection = () => {
@@ -111,7 +113,7 @@ const ArchitectureSection = () => {
             <p className="text-xs text-muted-foreground font-mono mb-3 text-center">
               Elasticsearch 9.x
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {indices.map((idx) => (
                 <div
                   key={idx.label}

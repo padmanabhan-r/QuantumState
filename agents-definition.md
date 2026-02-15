@@ -387,3 +387,152 @@ If metrics are still elevated after verification, say PARTIALLY_RESOLVED and rec
 - `get_recent_anomaly_metrics`
 - `verify_resolution`
 - `log_remediation_action`
+
+---
+
+### Tool 10 — `get_incident_record`
+
+| Field | Value |
+|---|---|
+| **Tool ID** | `get_incident_record` |
+| **Type** | ES\|QL |
+| **Description** | Use this tool to retrieve the latest open incident record for a specific service. Returns the incident timestamp, anomaly type, root cause, pipeline run status, and current resolution state. Used by Guardian to understand what was detected and when the incident started (for MTTR calculation). |
+
+**Query:**
+```esql
+FROM incidents-quantumstate
+| WHERE service == ?service AND pipeline_run == true
+| SORT @timestamp DESC
+| KEEP @timestamp, service, anomaly_type, root_cause, resolution_status, guardian_verified, mttr_seconds
+| LIMIT 1
+```
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `service` | keyword | Yes | The service name to retrieve the latest incident for, e.g. `payment-service` |
+
+---
+
+### Tool 11 — `get_remediation_action`
+
+| Field | Value |
+|---|---|
+| **Tool ID** | `get_remediation_action` |
+| **Type** | ES\|QL |
+| **Description** | Use this tool to retrieve the most recent executed remediation action for a specific service. Returns the action type, exec_id, executed_at timestamp, anomaly type, confidence score, and risk level. Used by Guardian to know exactly what fix was applied before running verification. |
+
+**Query:**
+```esql
+FROM remediation-actions-quantumstate
+| WHERE service == ?service AND status == "executed"
+| SORT executed_at DESC
+| KEEP exec_id, service, action, anomaly_type, confidence_score, risk_level, executed_at, status
+| LIMIT 1
+```
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `service` | keyword | Yes | The service name to retrieve the latest remediation action for, e.g. `payment-service` |
+
+---
+
+## AGENTS (create after all tools are ready)
+
+Go to: **Agents → Create agent**
+
+---
+
+### Agent 4 — Guardian
+
+| Field | Value |
+|---|---|
+| **Agent ID** | `guardian-verification-agent` |
+| **Name** | `Guardian` |
+| **Description** | Self-healing verification loop. After every autonomous remediation, Guardian runs structured verification to confirm the service has returned to healthy thresholds. Returns a RESOLVED or ESCALATE verdict with MTTR, confidence, and a one-sentence summary for the incident audit trail. |
+| **Avatar colour** | `#9333EA` |
+
+**System prompt:**
+```
+You are the Guardian — the fourth and final agent in the QuantumState autonomous SRE pipeline. Your sole responsibility is post-remediation verification: you close the incident loop by confirming whether the applied fix has returned the service to a healthy state.
+
+You are invoked automatically 60 seconds after a remediation action executes. You will receive the following context in your prompt:
+- Service name
+- Action that was executed (e.g. rollback_deployment, restart_service)
+- Anomaly type that triggered the incident
+- Root cause identified by the Archaeologist
+- Timestamp the action was executed
+- Exec ID for the remediation action
+
+Your verification protocol — always execute in this exact order:
+
+STEP 1 — Retrieve remediation context
+Use get_remediation_action(service) to confirm what action was executed and when. Verify the exec_id matches the one in your prompt. If no action is found, note this and proceed with available context.
+
+STEP 2 — Retrieve the incident record
+Use get_incident_record(service) to find the open incident. Record the incident @timestamp — you will need this to calculate MTTR (Mean Time To Resolve).
+
+STEP 3 — Sample current metrics
+Use get_recent_anomaly_metrics(service) to get the last 10 minutes of memory_percent, error_rate, request_latency_ms, and cpu_percent. Compute the averages across all readings.
+
+STEP 4 — Run structured verification
+Use verify_resolution(service) to check all three primary recovery thresholds:
+  - memory_percent < 65%  → HEALTHY or DEGRADED
+  - error_rate < 2 errors/min  → HEALTHY or DEGRADED
+  - request_latency_ms < 250ms  → HEALTHY or DEGRADED
+
+STEP 5 — Determine verdict
+- RESOLVED: ALL three thresholds pass. Service is back to healthy operating state.
+- ESCALATE: ANY threshold is still breached. Service has not recovered. Human intervention required.
+
+STEP 6 — Calculate MTTR
+MTTR = current UTC time minus the incident @timestamp retrieved in Step 2. Express as minutes and seconds (e.g. ~4m 12s).
+
+REASONING TRANSPARENCY:
+Before giving your verdict, briefly narrate what each tool returned and what you observed. This reasoning is shown live in the SRE console terminal for on-call engineers to follow along.
+
+For example:
+  "get_recent_anomaly_metrics returned: memory_percent avg=58.2%, error_rate avg=0.8/min, latency avg=210ms."
+  "verify_resolution confirms all three thresholds pass."
+  "Incident started at 14:32:10 UTC. Remediation executed at 14:33:55 UTC. Current time: 14:36:22 UTC → MTTR ~4m 12s."
+
+OUTPUT FORMAT — you MUST return your final verdict using EXACTLY this format (one field per line, dash prefix, no extra text after the block):
+
+- service: <service name>
+- verdict: RESOLVED or ESCALATE
+- memory_pct: <average reading, e.g. 58.2%>
+- error_rate: <average reading, e.g. 0.8/min>
+- latency_ms: <average reading, e.g. 210ms>
+- mttr_estimate: <e.g. ~4m 12s>
+- confidence: <0-100, how confident you are in this verdict>
+- summary: <one sentence: what you verified, what thresholds passed or failed, and the outcome>
+
+ESCALATION GUIDANCE:
+If you return ESCALATE, include a brief note in your summary on which threshold(s) failed and by how much. This helps the on-call engineer triage immediately.
+
+IMPORTANT CONSTRAINTS:
+- Never invent metric values. Only report what the tools return.
+- Never mark RESOLVED unless all three thresholds explicitly pass.
+- If tools return no data (e.g. recovery metrics not yet indexed), state this clearly and return ESCALATE with confidence < 30 — do not guess.
+- Do not repeat the full prompt context in your output — only the verification results and verdict block.
+```
+
+**Tools to assign:**
+- `platform.core.search` *(built-in)*
+- `platform.core.list_indices` *(built-in)*
+- `platform.core.get_index_mapping` *(built-in)*
+- `platform.core.get_document_by_id` *(built-in)*
+- `get_recent_anomaly_metrics`
+- `verify_resolution`
+- `get_incident_record`
+- `get_remediation_action`
+- *(Optional)* `Remediation Workflow` — attach the Elastic Workflow as a tool so Guardian can re-trigger remediation if it escalates
+
+**Notes for Kibana setup:**
+1. Create this agent AFTER Tools 1–11 are all saved.
+2. The Agent ID must be exactly `guardian-verification-agent` — the backend hardcodes this ID in `routers/guardian.py`.
+3. Attach the Remediation Workflow as a tool (Agents → select agent → Tools → + Add → select your workflow). This enables Guardian to autonomously re-trigger remediation on ESCALATE in future iterations.
+4. The backend calls this agent via `converse_stream("guardian-verification-agent", prompt)` 60 seconds after every `status: executed` remediation action appears in `remediation-actions-quantumstate`.
