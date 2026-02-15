@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.3.1] - 2026-02-15
+
+### Demo Polish & Error Spike Support
+
+End-to-end validation of the error spike scenario on real Docker infra. Guardian auto-triggers after remediation. Sim Control restructured for cleaner demo flow.
+
+### Added
+
+- **Guardian auto-countdown** — 90s countdown appears in console after Surgeon fires; Guardian triggers automatically without pressing "Verify with Guardian". "Verify now" button still available to skip the wait.
+- **Guardian chat** — Guardian added to the "Talk to agent" selector in the console chat panel
+- **`/api/cleanup/incidents`** endpoint — clears incident, remediation, and guardian result docs while keeping baseline metrics intact
+- **Sim Control toggle** — Real Infra (Docker Sim) and Synthetic Sim now separated with a tab toggle; Real Infra is default. Docker inject cards include inline Reset buttons.
+- **Cooldown bypass for ESCALATE** — pipeline re-runs are no longer blocked if the previous incident for that service ended with ESCALATE (unresolved)
+
+### Changed
+
+- **`verify_resolution` query** — window reduced from `NOW() - 10 minutes` to `NOW() - 1 minute` so Guardian only sees post-restart clean readings
+- **Guardian system prompt Step 3** — updated to reference "last 1 minute" to match query
+- **Guardian error_rate threshold** — raised from `< 2` to `< 2.5` errors/min to avoid false ESCALATEs from marginal post-recovery readings
+- **Spike log templates** — changed from Redis-themed (`CACHE_MISS`, `REQUEST_TIMEOUT`) to deployment-regression themed (`UNHANDLED_EXCEPTION`, `REQUEST_FAILURE`) so Surgeon correctly selects `rollback_deployment` instead of `scale_cache`
+- **MTTR strip** — "vs manual" label updated to "vs 47min manual avg" for transparency
+- **Sim Control** — Deployment Rollback scenario removed; only Memory Leak and Error Spike remain (both proven end-to-end on real infra)
+
+### Result
+
+**Error spike proven on real infrastructure.** Unhandled exception injected → Cassandra detects error_rate 2400% above baseline → Archaeologist finds deployment regression logs → Surgeon fires `rollback_deployment` (confidence 0.95) → MCP runner executes `docker stop+start checkout-service` → Guardian auto-triggers at T+90s → **RESOLVED**.
+
+---
+
 ## [0.3.0] - 2026-02-15
 
 ### The Real Infrastructure Release

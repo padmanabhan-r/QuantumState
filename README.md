@@ -207,7 +207,9 @@ curl -X POST http://localhost:8001/simulate/leak
 # Run pipeline in Console → Guardian RESOLVED with real MTTR
 ```
 
-**Proven result:** MTTR 7m 53s on real infrastructure (memory leak → `docker restart` → Guardian RESOLVED).
+**Proven results:**
+- Memory leak → `docker restart payment-service` → Guardian RESOLVED. **MTTR: ~8m**
+- Error spike → `docker stop+start checkout-service` → Guardian RESOLVED. **MTTR: ~2m**
 
 ---
 
