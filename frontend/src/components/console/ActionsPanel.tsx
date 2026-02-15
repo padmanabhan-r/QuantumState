@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Zap, RefreshCw, CheckCircle2, Clock, AlertTriangle, Loader2 } from "lucide-react";
+import { API } from "@/lib/config";
 
 interface RemediationAction {
   "@timestamp": string;
@@ -135,7 +136,7 @@ export default function ActionsPanel() {
 
   async function fetchActions() {
     try {
-      const res = await fetch("/api/actions");
+      const res = await fetch(`${API}/actions`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setActions(data.actions ?? []);

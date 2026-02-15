@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Loader2, CheckCircle2, Circle, Square, RefreshCw, Timer, Zap, ShieldCheck, AlertTriangle } from "lucide-react";
+import { API } from "@/lib/config";
 
 interface Block {
   agent: string;
@@ -72,7 +73,7 @@ export default function PipelinePanel() {
     setBlocks([]); setCurrentAgent(null); setDoneAgents([]);
 
     try {
-      const res = await fetch("/api/pipeline/run", { method: "POST" });
+      const res = await fetch(`${API}/pipeline/run`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       if (!res.body) throw new Error("No response body");
 
@@ -171,7 +172,7 @@ export default function PipelinePanel() {
     setCurrentAgent("guardian");
 
     try {
-      const res = await fetch(`/api/guardian/stream/${encodeURIComponent(service)}`, { method: "POST" });
+      const res = await fetch(`${API}/guardian/stream/${encodeURIComponent(service)}`, { method: "POST" });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
 
       const reader  = res.body.getReader();
