@@ -29,5 +29,6 @@ pnpm-debug.log*
 
 # ── Project-specific ignores ──────────────────────────────────────────────────
 .backup/
+memory/
 notes/
 implementation/
