@@ -8,7 +8,7 @@ import os
 import time
 import json
 import subprocess
-import datetime
+import datetime as dt
 import requests
 from elasticsearch import Elasticsearch, ConflictError
 from dotenv import load_dotenv
@@ -110,7 +110,8 @@ def poll():
     resp = es.search(
         index=ACTIONS_INDEX,
         body={
-            "query": {"term": {"status": "executing"}},
+            "seq_no_primary_term": True,
+            "query": {"term": {"status": "pending"}},
             "sort":  [{"@timestamp": "asc"}],
             "size":  1,
         },
@@ -132,7 +133,7 @@ def lock_and_process(hit: dict):
             id=doc_id,
             if_seq_no=seq_no,
             if_primary_term=pri_trm,
-            body={"doc": {"status": "running", "runner_started_at": datetime.datetime.utcnow().isoformat() + "Z"}},
+            body={"doc": {"status": "executing", "runner_started_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")}},
         )
     except ConflictError:
         print(f"[runner] {doc_id} already locked by another runner — skipping")
@@ -145,7 +146,7 @@ def lock_and_process(hit: dict):
         print(f"[runner] Docker failed ({result['output']}) — trying fallback")
         result = fallback_remediate(doc)
 
-    ts = datetime.datetime.utcnow().isoformat() + "Z"
+    ts = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
     final_status = "executed" if result["ok"] else "failed"
 
     # Update action doc

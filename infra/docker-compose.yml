@@ -116,4 +116,7 @@ services:
       BACKEND_URL: http://host.docker.internal:8000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     restart: unless-stopped
