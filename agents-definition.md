@@ -274,7 +274,7 @@ Go to: **Agents → Create agent**
 | **Agent ID** | `cassandra-detection-agent` |
 | **Name** | `Cassandra` |
 | **Description** | Predictive anomaly detection. Monitors metrics across all services and predicts failures before they happen. |
-| **Avatar colour** | `hsl(221 83% 53%)` |
+| **Avatar colour** | `#2463eb` |
 
 **System prompt:**
 ```
@@ -314,7 +314,7 @@ If no anomaly is detected, say so clearly. Do not guess or hallucinate metrics.
 | **Agent ID** | `archaeologist-investigation-agent` |
 | **Name** | `Archaeologist` |
 | **Description** | Root cause investigator. Given an anomaly, searches logs, correlates deployments, and finds similar past incidents to determine what caused it. |
-| **Avatar colour** | `hsl(188 94% 43%)` |
+| **Avatar colour** | `#07b9d5` |
 
 **System prompt:**
 ```
@@ -354,7 +354,7 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 | **Agent ID** | `surgeon-action-agent` |
 | **Name** | `Surgeon` |
 | **Description** | Safe remediation executor. Takes a confirmed root cause and executes the appropriate fix, then verifies the service has recovered. |
-| **Avatar colour** | `hsl(160 84% 39%)` |
+| **Avatar colour** | `#10b77f` |
 
 **System prompt:**
 ```
@@ -479,7 +479,7 @@ Go to: **Agents → Create agent**
 | **Agent ID** | `guardian-verification-agent` |
 | **Name** | `Guardian` |
 | **Description** | Self-healing verification loop. After every autonomous remediation, Guardian runs structured verification to confirm the service has returned to healthy thresholds. Returns a RESOLVED or ESCALATE verdict with MTTR, confidence, and a one-sentence summary for the incident audit trail. |
-| **Avatar colour** | `hsl(280 84% 60%)` |
+| **Avatar colour** | `#b643ef` |
 
 **System prompt:**
 ```
