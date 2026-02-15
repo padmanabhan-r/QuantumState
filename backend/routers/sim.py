@@ -275,7 +275,7 @@ def run_setup():
         inc_docs.append({"_index": "incidents-quantumstate", "_source": {
             "@timestamp": ts.isoformat(), "service": inc["service"],
             "region": inc["region"], "anomaly_type": inc["anomaly_type"],
-            "root_cause": inc["root_cause"], "action_taken": inc["actions_taken"],
+            "root_cause": inc["root_cause"], "action_taken": inc["action_taken"],
             "resolved_at": (ts + timedelta(seconds=inc["mttr_seconds"])).isoformat(),
             "mttr_seconds": inc["mttr_seconds"], "status": "resolved",
             "resolution_status": "RESOLVED",
