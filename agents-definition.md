@@ -274,7 +274,7 @@ Go to: **Agents → Create agent**
 | **Agent ID** | `cassandra-detection-agent` |
 | **Name** | `Cassandra` |
 | **Description** | Predictive anomaly detection. Monitors metrics across all services and predicts failures before they happen. |
-| **Avatar colour** | `#FF0000` |
+| **Avatar colour** | `hsl(221 83% 53%)` |
 
 **System prompt:**
 ```
@@ -314,7 +314,7 @@ If no anomaly is detected, say so clearly. Do not guess or hallucinate metrics.
 | **Agent ID** | `archaeologist-investigation-agent` |
 | **Name** | `Archaeologist` |
 | **Description** | Root cause investigator. Given an anomaly, searches logs, correlates deployments, and finds similar past incidents to determine what caused it. |
-| **Avatar colour** | `#2D2121` |
+| **Avatar colour** | `hsl(188 94% 43%)` |
 
 **System prompt:**
 ```
@@ -354,7 +354,7 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 | **Agent ID** | `surgeon-action-agent` |
 | **Name** | `Surgeon` |
 | **Description** | Safe remediation executor. Takes a confirmed root cause and executes the appropriate fix, then verifies the service has recovered. |
-| **Avatar colour** | `#BFDBFF` |
+| **Avatar colour** | `hsl(160 84% 39%)` |
 
 **System prompt:**
 ```
@@ -440,6 +440,32 @@ FROM remediation-actions-quantumstate
 
 ---
 
+### Tool 12 — `quantumstate.autonomous_remediation` (Workflow Tool)
+
+> **This tool type is different — it wraps an Elastic Workflow, not an ES|QL query.**
+
+| Field | Value |
+|---|---|
+| **Tool ID** | `quantumstate.autonomous_remediation` |
+| **Type** | `Workflow` |
+| **Workflow** | Select `QuantumState — Autonomous Remediation` from the dropdown |
+| **Wait until the workflow completes** | ✅ Checked (tool waits up to 120s and returns results) |
+| **Description** | Use this tool to trigger the QuantumState Autonomous Remediation workflow for a specific service. Call this when confidence is high and a fix needs to be executed — the workflow validates confidence, creates a Kibana Case, writes the action to the audit index, and executes the remediation. |
+
+**How to create this tool in Kibana:**
+
+1. Go to **Agents → More → View all tools → New tool**
+2. Under **Type**, select **`Workflow`** (not ES|QL)
+3. Under **Workflow**, select **`QuantumState — Autonomous Remediation`** from the dropdown
+4. Check **`Wait until the workflow completes`** — the tool then waits up to 120s for a result and returns it to the agent synchronously. If unchecked, the workflow runs in the background and the agent must poll for status.
+5. Under **Details → Tool ID**, enter exactly: `quantumstate.autonomous_remediation`
+6. Fill in the Description from the table above
+7. Save the tool
+
+**Assign to:** Guardian (`guardian-verification-agent`) — enables Guardian to re-trigger remediation autonomously on ESCALATE verdict
+
+---
+
 ## AGENTS (create after all tools are ready)
 
 Go to: **Agents → Create agent**
@@ -453,7 +479,7 @@ Go to: **Agents → Create agent**
 | **Agent ID** | `guardian-verification-agent` |
 | **Name** | `Guardian` |
 | **Description** | Self-healing verification loop. After every autonomous remediation, Guardian runs structured verification to confirm the service has returned to healthy thresholds. Returns a RESOLVED or ESCALATE verdict with MTTR, confidence, and a one-sentence summary for the incident audit trail. |
-| **Avatar colour** | `#9333EA` |
+| **Avatar colour** | `hsl(280 84% 60%)` |
 
 **System prompt:**
 ```
@@ -529,10 +555,10 @@ IMPORTANT CONSTRAINTS:
 - `verify_resolution`
 - `get_incident_record`
 - `get_remediation_action`
-- *(Optional)* `Remediation Workflow` — attach the Elastic Workflow as a tool so Guardian can re-trigger remediation if it escalates
+- `quantumstate.autonomous_remediation` *(Workflow tool — see Tool 12)* — enables Guardian to re-trigger remediation autonomously on ESCALATE
 
 **Notes for Kibana setup:**
 1. Create this agent AFTER Tools 1–11 are all saved.
 2. The Agent ID must be exactly `guardian-verification-agent` — the backend hardcodes this ID in `routers/guardian.py`.
-3. Attach the Remediation Workflow as a tool (Agents → select agent → Tools → + Add → select your workflow). This enables Guardian to autonomously re-trigger remediation on ESCALATE in future iterations.
+3. Attach `quantumstate.autonomous_remediation` (Tool 12) to Guardian. This enables Guardian to autonomously re-trigger remediation on ESCALATE.
 4. The backend calls this agent via `converse_stream("guardian-verification-agent", prompt)` 60 seconds after every `status: executed` remediation action appears in `remediation-actions-quantumstate`.
