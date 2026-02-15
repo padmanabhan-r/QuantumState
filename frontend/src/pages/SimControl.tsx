@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ElasticIcon from "@/components/ElasticIcon";
+import { API as API_BASE } from "@/lib/config";
 
-const API = "/api/sim";
+const API = `${API_BASE}/sim`;
 
 type IndexInfo = { exists: boolean; count: number };
 type StatusData = { streaming: boolean; indices: Record<string, IndexInfo> };
