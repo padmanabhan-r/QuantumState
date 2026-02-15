@@ -51,6 +51,7 @@ rsync $RSYNC_FLAGS \
   "${COMMON_EXCLUDES[@]}" \
   --exclude 'node_modules' \
   --exclude 'dist' \
+  --exclude '.vite' \
   "$FRONTEND_SRC" "$FRONTEND_DEST" \
   | grep -E '^[><].*([+s])|\*deleting' || echo "✔ No frontend changes"
 
