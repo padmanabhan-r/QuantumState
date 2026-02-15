@@ -7,7 +7,7 @@ Falls back to synthetic values if a container is unreachable.
 import os
 import time
 import random
-import datetime
+import datetime as dt
 import requests
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv
@@ -68,7 +68,7 @@ def scrape_service(svc: dict) -> dict | None:
 
 
 def write_metrics(service: str, region: str, metrics: dict):
-    ts = datetime.datetime.utcnow().isoformat() + "Z"
+    ts = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
     for metric_type, value in [
         ("memory_percent", metrics["memory_percent"]),
         ("cpu_percent",    metrics["cpu_percent"]),

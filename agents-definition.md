@@ -16,18 +16,20 @@ Go to: **Agents → More → View all tools → New tool**
 |---|---|
 | **Tool ID** | `detect_memory_leak` |
 | **Type** | ES\|QL |
-| **Description** | Use this tool to detect memory leaks across all services. Returns services where memory usage is significantly above their 24-hour baseline, indicating a progressive memory leak. |
+| **Description** | Use this tool to detect memory leaks across all services. Returns services where memory usage exceeds 60% or has risen more than 15% above the recent minimum, indicating a progressive memory leak. |
 
 **Query:**
 ```esql
 FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 30m AND metric_type == "memory_percent"
-| STATS current_memory = AVG(value) BY service, region
-| EVAL baseline = 52.0
+| WHERE @timestamp > NOW() - 15 minutes AND metric_type == "memory_percent"
+| STATS
+    current_memory = AVG(value),
+    baseline = MIN(value)
+  BY service, region
 | EVAL deviation_pct = (current_memory - baseline) / baseline * 100
-| WHERE deviation_pct > 20
-| SORT deviation_pct DESC
-| KEEP service, region, current_memory, deviation_pct
+| WHERE current_memory > 60 OR deviation_pct > 15
+| SORT current_memory DESC
+| KEEP service, region, current_memory, baseline, deviation_pct
 | LIMIT 10
 ```
 
