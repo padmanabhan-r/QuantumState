@@ -89,7 +89,7 @@ FROM metrics-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to calculate time to failure for, e.g. `payment-service` |
+| `service` | string | Yes | The service name to calculate time to failure for, e.g. `payment-service` |
 
 ---
 
@@ -116,7 +116,7 @@ FROM logs-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to search logs for, e.g. `payment-service` |
+| `service` | string | Yes | The service name to search logs for, e.g. `payment-service` |
 
 ---
 
@@ -143,7 +143,7 @@ FROM logs-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to check for recent deployments, e.g. `checkout-service` |
+| `service` | string | Yes | The service name to check for recent deployments, e.g. `checkout-service` |
 
 ---
 
@@ -168,7 +168,7 @@ FROM incidents-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `anomaly_type` | keyword | Yes | The anomaly type to search for, e.g. `memory_leak_progressive`, `error_spike_sudden`, `deployment_regression` |
+| `anomaly_type` | string | Yes | The anomaly type to search for, e.g. `memory_leak_progressive`, `error_spike_sudden`, `deployment_regression` |
 
 ---
 
@@ -193,7 +193,7 @@ FROM agent-decisions-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service being remediated |
+| `service` | string | Yes | The service being remediated |
 
 ---
 
@@ -226,7 +226,7 @@ FROM metrics-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to verify recovery for, e.g. `payment-service` |
+| `service` | string | Yes | The service name to verify recovery for, e.g. `payment-service` |
 
 ---
 
@@ -257,7 +257,7 @@ FROM metrics-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to get full metric summary for, e.g. `payment-service` |
+| `service` | string | Yes | The service name to get full metric summary for, e.g. `payment-service` |
 
 ---
 
@@ -411,7 +411,7 @@ FROM incidents-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to retrieve the latest incident for, e.g. `payment-service` |
+| `service` | string | Yes | The service name to retrieve the latest incident for, e.g. `payment-service` |
 
 ---
 
@@ -436,7 +436,7 @@ FROM remediation-actions-quantumstate
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `service` | keyword | Yes | The service name to retrieve the latest remediation action for, e.g. `payment-service` |
+| `service` | string | Yes | The service name to retrieve the latest remediation action for, e.g. `payment-service` |
 
 ---
 
