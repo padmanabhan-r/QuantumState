@@ -336,6 +336,29 @@ def inject_scenario(scenario: str):
         return {"ok": False, "error": str(exc)}
 
 
+@router.post("/cleanup/incidents")
+def clear_incidents():
+    """Delete all incident, remediation, and guardian result docs — keeps metrics/logs intact."""
+    es = get_es()
+    results = {}
+    for name in [
+        "incidents-quantumstate",
+        "remediation-actions-quantumstate",
+        "remediation-results-quantumstate",
+        "approval-requests-quantumstate",
+        "agent-decisions-quantumstate",
+    ]:
+        try:
+            if es.indices.exists(index=name):
+                es.delete_by_query(index=name, body={"query": {"match_all": {}}}, refresh=True)
+                results[name] = "cleared"
+            else:
+                results[name] = "not found"
+        except Exception as exc:
+            results[name] = f"error: {exc}"
+    return {"ok": True, "results": results}
+
+
 @router.post("/cleanup/clear")
 def clear_data():
     es = get_es()

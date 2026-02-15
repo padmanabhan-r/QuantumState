@@ -16,9 +16,8 @@ async function apiFetch(path: string, method = "GET") {
 }
 
 const SCENARIOS = [
-  { key: "memory_leak",         icon: "🧠", title: "Memory Leak",         service: "payment-service",  desc: "Memory 55%→89% over 25 min. GC overhead critical." },
-  { key: "deployment_rollback", icon: "💥", title: "Deployment Rollback", service: "checkout-service", desc: "Error rate 0.4→18/min after deploy v3.5.0." },
-  { key: "error_spike",         icon: "⚡", title: "Error Spike",         service: "auth-service",     desc: "Redis evicted. Errors 28/min, latency 1200ms." },
+  { key: "memory_leak",  icon: "🧠", title: "Memory Leak",  service: "payment-service", desc: "Memory 55%→89% over 25 min. GC overhead critical." },
+  { key: "error_spike", icon: "⚡", title: "Error Spike", service: "auth-service",    desc: "Unhandled exception. Errors 28/min, latency 1200ms." },
 ] as const;
 
 const SHORT = (name: string) => name.replace("-quantumstate", "");
@@ -180,6 +179,10 @@ export default function SimControl() {
           <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cleanup</div>
             <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={busy === "incidents"} onClick={() => action("incidents", `${API}/cleanup/incidents`, "Incidents cleared")} className="w-44">
+                {busy === "incidents" ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+                Clear Incidents
+              </Button>
               <Button size="sm" variant="outline" disabled={busy === "clear"} onClick={() => action("clear", `${API}/cleanup/clear`, "Data cleared")} className="w-40">
                 {busy === "clear" ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
                 Clear Data

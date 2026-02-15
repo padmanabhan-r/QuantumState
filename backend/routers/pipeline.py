@@ -230,8 +230,14 @@ def _pipeline_generator():
                     "sort": [{"@timestamp": "desc"}],
                 })
                 if _recent["hits"]["total"]["value"] > 0:
-                    _last_ts = _recent["hits"]["hits"][0]["_source"].get("@timestamp", "")
-                    _handled_services.append(f"{_svc} (handled {_last_ts[:16].replace('T',' ')} UTC)")
+                    _last_doc = _recent["hits"]["hits"][0]["_source"]
+                    _last_ts = _last_doc.get("@timestamp", "")
+                    _resolution = _last_doc.get("resolution_status", "")
+                    # Allow re-run if the previous incident was escalated (unresolved)
+                    if _resolution in ("ESCALATE", "escalate", ""):
+                        _new_services.append(_svc)
+                    else:
+                        _handled_services.append(f"{_svc} (handled {_last_ts[:16].replace('T',' ')} UTC)")
                 else:
                     _new_services.append(_svc)
 
