@@ -44,10 +44,10 @@ _LEAK_LOGS = [
     ("WARN",     "MEMORY_LEAK_DETECTED",  "Heap growth rate 1.9%/min — possible memory leak in payment processor"),
 ]
 _SPIKE_LOGS = [
-    ("ERROR",    "REQUEST_TIMEOUT",       "Upstream timeout after 1200ms — Redis eviction in progress"),
-    ("ERROR",    "CACHE_MISS",            "Cache miss rate 94% — Redis maxmemory policy evicting keys"),
-    ("CRITICAL", "ERROR_RATE_CRITICAL",   "Error rate {err:.0f}/min exceeds SLA threshold of 5/min"),
-    ("WARN",     "LATENCY_DEGRADED",      "p99 latency {lat:.0f}ms — dependency degradation detected"),
+    ("ERROR",    "UNHANDLED_EXCEPTION",   "NullPointerException in CheckoutController.processOrder — bad deploy introduced null ref"),
+    ("CRITICAL", "ERROR_RATE_CRITICAL",   "Error rate {err:.0f}/min exceeds SLA threshold of 5/min — regression detected post-deploy"),
+    ("ERROR",    "REQUEST_FAILURE",       "Checkout flow failing on 94% of requests — unhandled exception in order validation layer"),
+    ("WARN",     "LATENCY_DEGRADED",      "p99 latency {lat:.0f}ms — error handling overhead from uncaught exceptions"),
 ]
 
 

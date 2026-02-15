@@ -15,6 +15,7 @@ const AGENTS = [
   { id: "cassandra",     label: "Cassandra",     role: "Detection",    accent: "hsl(221 83% 53%)", glow: "hsl(221 83% 53% / 0.15)" },
   { id: "archaeologist", label: "Archaeologist", role: "Investigation", accent: "hsl(188 94% 43%)", glow: "hsl(188 94% 43% / 0.15)" },
   { id: "surgeon",       label: "Surgeon",       role: "Remediation",  accent: "hsl(160 84% 39%)", glow: "hsl(160 84% 39% / 0.15)" },
+  { id: "guardian",      label: "Guardian",      role: "Verification", accent: "hsl(280 84% 60%)", glow: "hsl(280 84% 60% / 0.15)" },
 ];
 
 function agentCfg(id: string) {

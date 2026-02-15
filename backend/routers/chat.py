@@ -43,6 +43,7 @@ AGENT_IDS = {
     "cassandra":     "cassandra-detection-agent",
     "archaeologist": "archaeologist-investigation-agent",
     "surgeon":       "surgeon-action-agent",
+    "guardian":      "guardian-verification-agent",
 }
 
 

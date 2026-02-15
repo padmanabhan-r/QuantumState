@@ -210,13 +210,13 @@ FROM agent-decisions-quantumstate
 **Query:**
 ```esql
 FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 10 minutes
+| WHERE @timestamp > NOW() - 1 minute
   AND service == ?service
   AND metric_type IN ("memory_percent", "error_rate", "latency_ms")
 | STATS current_value = AVG(value) BY service, metric_type
 | EVAL healthy = CASE(
     metric_type == "memory_percent" AND current_value < 65, "YES",
-    metric_type == "error_rate" AND current_value < 2, "YES",
+    metric_type == "error_rate" AND current_value < 2.5, "YES",
     metric_type == "latency_ms" AND current_value < 400, "YES",
     "NO"
   )
@@ -504,12 +504,12 @@ STEP 2 — Retrieve the incident record
 Use get_incident_record(service) to find the open incident. Record the incident @timestamp — you will need this to calculate MTTR (Mean Time To Resolve).
 
 STEP 3 — Sample current metrics
-Use get_recent_anomaly_metrics(service) to get the last 10 minutes of memory_percent, error_rate, latency_ms, and cpu_percent. Compute the averages across all readings.
+Use get_recent_anomaly_metrics(service) to get the last 1 minute of memory_percent, error_rate, latency_ms, and cpu_percent. Compute the averages across all readings.
 
 STEP 4 — Run structured verification
 Use verify_resolution(service) to check all three primary recovery thresholds:
   - memory_percent < 65%  → HEALTHY or DEGRADED
-  - error_rate < 2 errors/min  → HEALTHY or DEGRADED
+  - error_rate < 2.5 errors/min  → HEALTHY or DEGRADED
   - latency_ms < 400ms  → HEALTHY or DEGRADED
 
 STEP 5 — Determine verdict

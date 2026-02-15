@@ -33,6 +33,9 @@ export default function PipelinePanel() {
   // Guardian state
   const [remediatedService, setRemediatedService] = useState<string | null>(null);
   const [guardianRunning, setGuardianRunning]     = useState(false);
+  const [guardianCountdown, setGuardianCountdown] = useState(0);
+  const guardianCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const guardianAutoTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-run state
   const [mode, setMode]           = useState<"manual" | "auto">("manual");
@@ -111,7 +114,8 @@ export default function PipelinePanel() {
               } else if (evtName === "error") {
                 setError(text);
               } else if (evtName === "remediation_triggered") {
-                if (payload.service) setRemediatedService(payload.service as string);
+                const svc = payload.service as string;
+                if (svc) { setRemediatedService(svc); scheduleGuardian(svc); }
                 appendBlock({ agent, event: evtName, text, meta: payload });
               } else if (
                 evtName === "remediation_executing" ||
@@ -166,7 +170,25 @@ export default function PipelinePanel() {
     setCountdown(0);
   }
 
+  function scheduleGuardian(service: string, delaySecs = 90) {
+    if (guardianCountdownRef.current) clearInterval(guardianCountdownRef.current);
+    if (guardianAutoTimer.current)    clearTimeout(guardianAutoTimer.current);
+    setGuardianCountdown(delaySecs);
+    guardianCountdownRef.current = setInterval(() => {
+      setGuardianCountdown((c) => {
+        if (c <= 1) { clearInterval(guardianCountdownRef.current!); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    guardianAutoTimer.current = setTimeout(() => {
+      runGuardian(service);
+    }, delaySecs * 1000);
+  }
+
   async function runGuardian(service: string) {
+    if (guardianAutoTimer.current)    { clearTimeout(guardianAutoTimer.current);    guardianAutoTimer.current = null; }
+    if (guardianCountdownRef.current) { clearInterval(guardianCountdownRef.current); guardianCountdownRef.current = null; }
+    setGuardianCountdown(0);
     if (guardianRunning) return;
     setGuardianRunning(true);
     setCurrentAgent("guardian");
@@ -373,21 +395,26 @@ export default function PipelinePanel() {
           <div className="mt-3 flex items-center gap-3 flex-wrap">
             <span className="flex items-center gap-1.5 text-[11px] font-mono" style={{ color: "hsl(280 84% 60%)" }}>
               <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "hsl(280 84% 60%)" }} />
-              Remediation executed for <span className="font-bold">{remediatedService}</span> — Guardian ready to verify
+              {guardianCountdown > 0
+                ? <>Guardian verifying in <span className="font-bold">{guardianCountdown}s</span> — waiting for recovery metrics…</>
+                : <>Remediation executed for <span className="font-bold">{remediatedService}</span> — triggering Guardian…</>
+              }
             </span>
-            <button
-              onClick={() => runGuardian(remediatedService)}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all"
-              style={{
-                background: "color-mix(in srgb, hsl(280 84% 60%) 15%, transparent)",
-                border: "1px solid color-mix(in srgb, hsl(280 84% 60%) 35%, transparent)",
-                color: "hsl(280 84% 60%)",
-                boxShadow: "0 0 12px hsl(280 84% 60% / 0.15)",
-              }}
-            >
-              <ShieldCheck className="h-3 w-3" />
-              Verify with Guardian
-            </button>
+            {guardianCountdown > 0 && (
+              <button
+                onClick={() => runGuardian(remediatedService)}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all"
+                style={{
+                  background: "color-mix(in srgb, hsl(280 84% 60%) 15%, transparent)",
+                  border: "1px solid color-mix(in srgb, hsl(280 84% 60%) 35%, transparent)",
+                  color: "hsl(280 84% 60%)",
+                  boxShadow: "0 0 12px hsl(280 84% 60% / 0.15)",
+                }}
+              >
+                <ShieldCheck className="h-3 w-3" />
+                Verify now
+              </button>
+            )}
           </div>
         )}
         {guardianRunning && (
