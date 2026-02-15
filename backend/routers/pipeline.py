@@ -54,6 +54,128 @@ def _event(name: str, data: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(data)}\n\n"
 
 
+_ACTION_MAP = {
+    "memory_leak_progressive": "rollback_deployment",
+    "memory_leak":             "restart_service",
+    "error_spike_sudden":      "rollback_deployment",
+    "deployment_rollback":     "rollback_deployment",
+    "latency_cascade":         "restart_dependency",
+    "cache_failure":           "scale_cache",
+    "redis_failure":           "restart_dependency",
+}
+
+_AUTONOMOUS_MODE = os.getenv("AUTONOMOUS_MODE", "true").lower() == "true"
+_CONFIDENCE_THRESHOLD = float(os.getenv("REMEDIATION_CONFIDENCE_THRESHOLD", "0.75"))
+
+
+def _parse_field_value(text: str, field: str) -> str:
+    """Extract a field value from agent output like '- field_name: value'."""
+    import re
+    for line in text.splitlines():
+        clean = re.sub(r"^[\s\-\*]+", "", line).strip()
+        m = re.match(rf"^\*{{0,2}}{re.escape(field)}\*{{0,2}}:\s*(.+)", clean, re.IGNORECASE)
+        if m:
+            return re.sub(r"\*", "", m.group(1)).strip()
+    return ""
+
+
+def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
+                                 archaeologist_output: str):
+    """
+    Parse Surgeon output. If autonomous mode is on and confidence is sufficient,
+    trigger the Kibana Workflow and write the action to ES.
+    Yields SSE events for the frontend.
+    """
+    if not _AUTONOMOUS_MODE:
+        return
+
+    service          = _parse_field_value(surgeon_output, "service")
+    anomaly_type     = _parse_field_value(surgeon_output, "anomaly_type") or \
+                       _parse_field_value(cassandra_output, "anomaly_type")
+    root_cause       = _parse_field_value(surgeon_output, "root_cause") or \
+                       _parse_field_value(archaeologist_output, "root_cause")
+    recommended_action = _parse_field_value(surgeon_output, "recommended_action")
+    risk_level       = _parse_field_value(surgeon_output, "risk_level") or "low"
+
+    # Parse confidence score
+    confidence_raw = _parse_field_value(surgeon_output, "confidence_score")
+    try:
+        confidence = float(confidence_raw)
+        if confidence > 1.0:        # agent returned 0-100 scale
+            confidence = confidence / 100.0
+    except (ValueError, TypeError):
+        confidence = 0.0
+
+    if not service or confidence < _CONFIDENCE_THRESHOLD:
+        if service and confidence > 0:
+            yield _event("remediation_skipped", {
+                "text": f"Autonomous remediation skipped — confidence {confidence:.2f} below threshold {_CONFIDENCE_THRESHOLD}",
+                "agent": "surgeon",
+            })
+        return
+
+    # Map anomaly type to action if Surgeon didn't provide one
+    if not recommended_action:
+        recommended_action = _ACTION_MAP.get(anomaly_type.lower(), "restart_service")
+
+    import uuid
+    incident_id = str(uuid.uuid4())[:12]
+
+    yield _event("remediation_triggered", {
+        "agent": "surgeon",
+        "text":  f"Triggering autonomous remediation — {recommended_action} on {service} "
+                 f"(confidence {confidence:.2f}, risk: {risk_level})",
+        "service":    service,
+        "action":     recommended_action,
+        "confidence": confidence,
+        "risk_level": risk_level,
+    })
+
+    try:
+        import requests as _req
+        payload = {
+            "incident_id":     incident_id,
+            "service":         service,
+            "action":          recommended_action,
+            "anomaly_type":    anomaly_type,
+            "root_cause":      root_cause,
+            "confidence_score": confidence,
+            "risk_level":      risk_level,
+        }
+
+        # 1. Trigger Kibana Workflow (creates Case + writes to ES coordination index)
+        wf_resp = _req.post(
+            "http://localhost:8000/api/workflow/trigger",
+            json=payload,
+            timeout=15,
+        )
+        wf_data = wf_resp.json() if wf_resp.ok else {}
+
+        # 2. Execute metric recovery immediately (runner pattern)
+        rem_resp = _req.post(
+            "http://localhost:8000/api/remediate",
+            json=payload,
+            timeout=20,
+        )
+        rem_data = rem_resp.json() if rem_resp.ok else {}
+
+        yield _event("remediation_executing", {
+            "agent":      "surgeon",
+            "text":       f"Remediation executing — recovery metrics being written. "
+                          f"exec_id: {rem_data.get('exec_id', 'n/a')} | "
+                          f"workflow: {'triggered' if wf_data.get('workflow_triggered') else 'ES-direct'}",
+            "exec_id":    rem_data.get("exec_id", ""),
+            "points":     rem_data.get("recovery_points_written", 0),
+            "wf_trigger": wf_data.get("workflow_triggered", False),
+        })
+
+    except Exception as exc:
+        yield _event("remediation_error", {
+            "agent": "surgeon",
+            "text":  f"Remediation trigger failed: {exc}",
+        })
+
+
 def _pipeline_generator():
     try:
         converse_stream = _get_converse_stream()
@@ -155,6 +277,9 @@ Return the final incident report using EXACTLY this format (one field per line, 
 - anomaly_type: <type>
 - root_cause: <description>
 - action_taken: <what was done>
+- recommended_action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
+- confidence_score: <decimal 0.0 to 1.0, e.g. 0.91>
+- risk_level: <one of: low | medium | high>
 - resolution_status: RESOLVED, PARTIALLY_RESOLVED, MONITORING, or ESCALATE
 - mttr_estimate: <e.g. 4 min>
 - lessons_learned: <description>
@@ -168,6 +293,12 @@ Return the final incident report using EXACTLY this format (one field per line, 
             surgeon_output = evt["text"]
     yield _event("agent_complete", {"agent": "surgeon", "text": surgeon_output})
 
+    # ── Autonomous remediation trigger ────────────────────────────────────────
+    # If confidence is sufficient, trigger the Kibana Workflow + write action to ES
+    yield from _maybe_trigger_remediation(
+        surgeon_output, cassandra_output, archaeologist_output
+    )
+
     # Parse surgeon output and write one incident doc per service found
     try:
         import re
@@ -175,6 +306,7 @@ Return the final incident report using EXACTLY this format (one field per line, 
         from elastic import get_es
 
         FIELDS = ("service", "anomaly_type", "root_cause", "action_taken",
+                  "recommended_action", "confidence_score", "risk_level",
                   "resolution_status", "mttr_estimate", "lessons_learned",
                   "pipeline_summary")
 
@@ -219,16 +351,19 @@ Return the final incident report using EXACTLY this format (one field per line, 
         written_ids = []
         for section in sections:
             doc = {
-                "@timestamp":        datetime.now(timezone.utc).isoformat(),
-                "pipeline_run":      True,
-                "service":           section.get("service", ""),
-                "anomaly_type":      section.get("anomaly_type", ""),
-                "root_cause":        section.get("root_cause", ""),
-                "action_taken":      section.get("action_taken", ""),
-                "resolution_status": section.get("resolution_status", "MONITORING"),
-                "mttr_estimate":     section.get("mttr_estimate", ""),
-                "lessons_learned":   section.get("lessons_learned", ""),
-                "pipeline_summary":  section.get("pipeline_summary", ""),
+                "@timestamp":         datetime.now(timezone.utc).isoformat(),
+                "pipeline_run":       True,
+                "service":            section.get("service", ""),
+                "anomaly_type":       section.get("anomaly_type", ""),
+                "root_cause":         section.get("root_cause", ""),
+                "action_taken":       section.get("action_taken", ""),
+                "recommended_action": section.get("recommended_action", ""),
+                "confidence_score":   section.get("confidence_score", ""),
+                "risk_level":         section.get("risk_level", ""),
+                "resolution_status":  section.get("resolution_status", "MONITORING"),
+                "mttr_estimate":      section.get("mttr_estimate", ""),
+                "lessons_learned":    section.get("lessons_learned", ""),
+                "pipeline_summary":   section.get("pipeline_summary", ""),
             }
             result = es.index(index="incidents-quantumstate", document=doc)
             written_ids.append(result["_id"])

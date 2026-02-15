@@ -5,9 +5,9 @@ const agents = [
   { name: "Cassandra",     role: "Detection",    icon: "📡", delay: 0,   status: "live"    as const },
   { name: "Archaeologist", role: "Investigation", icon: "🔬", delay: 0.1, status: "live"    as const },
   { name: "Surgeon",       role: "Remediation",  icon: "🩺", delay: 0.2, status: "live"    as const },
-  { name: "Tactician",     role: "Decision",     icon: "🧠", delay: 0.3, status: "roadmap" as const },
-  { name: "Diplomat",      role: "Approval Gate",icon: "🤝", delay: 0.4, status: "roadmap" as const },
-  { name: "Guardian",      role: "Verification", icon: "🛡️", delay: 0.5, status: "roadmap" as const },
+  { name: "Guardian",      role: "Verification", icon: "🛡️", delay: 0.3, status: "live"    as const },
+  { name: "Tactician",     role: "Decision",     icon: "🧠", delay: 0.4, status: "roadmap" as const },
+  { name: "Diplomat",      role: "Approval Gate",icon: "🤝", delay: 0.5, status: "roadmap" as const },
 ];
 
 // Animated arrow: three chevrons fade in sequentially top→bottom
@@ -105,8 +105,8 @@ const AgentPipeline = () => {
 
           {/* Connector below each card except the last */}
           {i < agents.length - 1 && (
-            i === 2
-              ? <RoadmapDivider />   // Between Surgeon (live) and Tactician (roadmap)
+            i === 3
+              ? <RoadmapDivider />   // Between Guardian (live) and Tactician (roadmap)
               : <FlowArrow />        // Between all other agents
           )}
         </div>

@@ -12,11 +12,6 @@ const roadmapAgents = [
     title: "Diplomat — Approval Gate",
     body: "Manages human-in-the-loop approvals via Slack or email. Handles escalation paths when automated remediation is blocked.",
   },
-  {
-    icon: "🛡️",
-    title: "Guardian — Verification",
-    body: "Validates that remediations held — monitors post-fix metrics, stores learnings back to Elasticsearch, and closes the incident loop.",
-  },
 ];
 
 const RoadmapSection = () => {
@@ -31,11 +26,11 @@ const RoadmapSection = () => {
         >
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">What's Next</h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            The first three agents are live. The rest of the swarm is on the way.
+            Four agents are live. The rest of the swarm is on the way.
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {roadmapAgents.map((agent, i) => (
             <motion.div
               key={agent.title}

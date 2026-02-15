@@ -31,6 +31,16 @@ const steps = [
     glow:   "hsl(160 84% 39% / 0.15)",
     tags:   ["Live Metric Sampling", "Resolution Verification", "Remediation Audit"],
   },
+  {
+    step: "04",
+    icon: "🛡️",
+    label: "Verify",
+    title: "Guardian closes the loop",
+    body: "60 seconds after remediation fires, Guardian runs structured post-fix verification. Checks memory, error rate, and latency against recovery thresholds, calculates MTTR, and returns a RESOLVED or ESCALATE verdict to the incident record.",
+    accent: "hsl(280 84% 60%)",        // purple
+    glow:   "hsl(280 84% 60% / 0.15)",
+    tags:   ["Post-Fix Metric Verification", "MTTR Calculation", "Incident Closure"],
+  },
 ];
 
 const HowItWorksSection = () => {
@@ -45,14 +55,14 @@ const HowItWorksSection = () => {
         >
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">How It Works</h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Three stages. Three live agents. Full autonomy.
+            Four stages. Four live agents. Fully closed loop.
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-6 relative">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
           {/* Connector line between cards on desktop */}
-          <div className="hidden md:block absolute top-10 left-[calc(33.33%+12px)] right-[calc(33.33%+12px)] h-px"
-            style={{ background: "linear-gradient(90deg, hsl(221 83% 53% / 0.4), hsl(188 94% 43% / 0.4), hsl(160 84% 39% / 0.4))" }}
+          <div className="hidden lg:block absolute top-10 left-[calc(25%+12px)] right-[calc(25%+12px)] h-px"
+            style={{ background: "linear-gradient(90deg, hsl(221 83% 53% / 0.4), hsl(188 94% 43% / 0.4), hsl(160 84% 39% / 0.4), hsl(280 84% 60% / 0.4))" }}
           />
 
           {steps.map((step, i) => (

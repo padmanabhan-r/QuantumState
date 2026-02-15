@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Loader2, CheckCircle2, Circle, Square, RefreshCw, Timer } from "lucide-react";
+import { Play, Loader2, CheckCircle2, Circle, Square, RefreshCw, Timer, Zap, ShieldCheck, AlertTriangle } from "lucide-react";
 
-interface Block { agent: string; event: string; text: string; }
+interface Block {
+  agent: string;
+  event: string;
+  text: string;
+  meta?: Record<string, unknown>;
+}
 
 const AGENTS = [
   { id: "cassandra",     label: "Cassandra",     role: "Detection",    accent: "hsl(221 83% 53%)", glow: "hsl(221 83% 53% / 0.15)" },
   { id: "archaeologist", label: "Archaeologist", role: "Investigation", accent: "hsl(188 94% 43%)", glow: "hsl(188 94% 43% / 0.15)" },
   { id: "surgeon",       label: "Surgeon",       role: "Remediation",  accent: "hsl(160 84% 39%)", glow: "hsl(160 84% 39% / 0.15)" },
+  { id: "guardian",      label: "Guardian",      role: "Verification", accent: "hsl(280 84% 60%)", glow: "hsl(280 84% 60% / 0.15)" },
 ];
 
 function agentCfg(id: string) {
@@ -22,6 +28,10 @@ export default function PipelinePanel() {
   const [done, setDone]                 = useState(false);
   const [doneMsg, setDoneMsg]           = useState("");
   const [error, setError]               = useState<string | null>(null);
+
+  // Guardian state
+  const [remediatedService, setRemediatedService] = useState<string | null>(null);
+  const [guardianRunning, setGuardianRunning]     = useState(false);
 
   // Auto-run state
   const [mode, setMode]           = useState<"manual" | "auto">("manual");
@@ -99,6 +109,15 @@ export default function PipelinePanel() {
                 setDone(true); setCurrentAgent(null); setDoneMsg(text);
               } else if (evtName === "error") {
                 setError(text);
+              } else if (evtName === "remediation_triggered") {
+                if (payload.service) setRemediatedService(payload.service as string);
+                appendBlock({ agent, event: evtName, text, meta: payload });
+              } else if (
+                evtName === "remediation_executing" ||
+                evtName === "remediation_skipped" ||
+                evtName === "remediation_error"
+              ) {
+                appendBlock({ agent, event: evtName, text, meta: payload });
               }
             } catch { /* ignore */ }
           }
@@ -144,6 +163,60 @@ export default function PipelinePanel() {
     if (autoTimer.current)    { clearTimeout(autoTimer.current);   autoTimer.current = null; }
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
     setCountdown(0);
+  }
+
+  async function runGuardian(service: string) {
+    if (guardianRunning) return;
+    setGuardianRunning(true);
+    setCurrentAgent("guardian");
+
+    try {
+      const res = await fetch(`/api/guardian/stream/${encodeURIComponent(service)}`, { method: "POST" });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        let evtName = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) { evtName = line.slice(6).trim(); }
+          else if (line.startsWith("data:")) {
+            try {
+              const payload = JSON.parse(line.slice(5).trim());
+              const text = payload.text ?? "";
+              if (evtName === "agent_start") {
+                appendBlock({ agent: "guardian", event: "agent_start", text: payload.label ?? "Guardian — Verification" });
+              } else if (evtName === "message_chunk") {
+                appendBlock({ agent: "guardian", event: "message_chunk", text });
+              } else if (evtName === "reasoning") {
+                appendBlock({ agent: "guardian", event: "reasoning", text });
+              } else if (evtName === "agent_complete") {
+                setDoneAgents((d) => [...d, "guardian"]);
+                setCurrentAgent(null);
+              } else if (evtName === "guardian_verdict") {
+                appendBlock({ agent: "guardian", event: "guardian_verdict", text, meta: payload });
+                setRemediatedService(null);
+              } else if (evtName === "error") {
+                appendBlock({ agent: "guardian", event: "remediation_error", text });
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch (err) {
+      appendBlock({ agent: "guardian", event: "remediation_error", text: err instanceof Error ? err.message : "Guardian failed" });
+    } finally {
+      setGuardianRunning(false);
+      setCurrentAgent(null);
+    }
   }
 
   const cfg = currentAgent ? agentCfg(currentAgent) : null;
@@ -294,6 +367,35 @@ export default function PipelinePanel() {
           </div>
         </div>
 
+        {/* Guardian verify prompt — appears after remediation fires */}
+        {remediatedService && !guardianRunning && !doneAgents.includes("guardian") && (
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono" style={{ color: "hsl(280 84% 60%)" }}>
+              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "hsl(280 84% 60%)" }} />
+              Remediation executed for <span className="font-bold">{remediatedService}</span> — Guardian ready to verify
+            </span>
+            <button
+              onClick={() => runGuardian(remediatedService)}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all"
+              style={{
+                background: "color-mix(in srgb, hsl(280 84% 60%) 15%, transparent)",
+                border: "1px solid color-mix(in srgb, hsl(280 84% 60%) 35%, transparent)",
+                color: "hsl(280 84% 60%)",
+                boxShadow: "0 0 12px hsl(280 84% 60% / 0.15)",
+              }}
+            >
+              <ShieldCheck className="h-3 w-3" />
+              Verify with Guardian
+            </button>
+          </div>
+        )}
+        {guardianRunning && (
+          <div className="mt-3 flex items-center gap-2 text-[11px] font-mono" style={{ color: "hsl(280 84% 60%)" }}>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Guardian verifying recovery…
+          </div>
+        )}
+
         {/* Status row */}
         {(done || autoActive) && (
           <div className="mt-3 flex items-center gap-3 text-xs font-medium flex-wrap">
@@ -375,6 +477,105 @@ export default function PipelinePanel() {
                   return (
                     <div key={i} className="pl-4 italic text-muted-foreground/60 text-[11px]">
                       ⟳ {b.text}
+                    </div>
+                  );
+                }
+                if (b.event === "remediation_triggered") {
+                  const m = b.meta as Record<string, unknown> | undefined;
+                  return (
+                    <div
+                      key={i}
+                      className="my-2 rounded-lg p-3 border"
+                      style={{
+                        background: "color-mix(in srgb, hsl(160 84% 39%) 8%, transparent)",
+                        borderColor: "color-mix(in srgb, hsl(160 84% 39%) 30%, transparent)",
+                        boxShadow: "0 0 20px hsl(160 84% 39% / 0.1)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Zap className="h-3.5 w-3.5" style={{ color: "hsl(160 84% 39%)" }} />
+                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "hsl(160 84% 39%)" }}>
+                          Autonomous Remediation Triggered
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-muted-foreground">
+                        {m?.service  && <span>service  <span style={{ color: "hsl(160 84% 39%)" }}>{String(m.service)}</span></span>}
+                        {m?.action   && <span>action   <span style={{ color: "hsl(160 84% 39%)" }}>{String(m.action)}</span></span>}
+                        {m?.confidence !== undefined && <span>confidence <span style={{ color: "hsl(160 84% 39%)" }}>{(Number(m.confidence) * 100).toFixed(0)}%</span></span>}
+                        {m?.risk_level && <span>risk <span style={{ color: m.risk_level === "high" ? "hsl(0 84% 60%)" : m.risk_level === "medium" ? "hsl(38 92% 50%)" : "hsl(160 84% 39%)" }}>{String(m.risk_level)}</span></span>}
+                      </div>
+                    </div>
+                  );
+                }
+                if (b.event === "remediation_executing") {
+                  const m = b.meta as Record<string, unknown> | undefined;
+                  return (
+                    <div
+                      key={i}
+                      className="my-1 rounded-lg px-3 py-2 border flex items-center gap-2"
+                      style={{
+                        background: "color-mix(in srgb, hsl(188 94% 43%) 6%, transparent)",
+                        borderColor: "color-mix(in srgb, hsl(188 94% 43%) 20%, transparent)",
+                      }}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "hsl(188 94% 43%)" }} />
+                      <span className="text-[10px] font-mono" style={{ color: "hsl(188 94% 43%)" }}>
+                        Recovery executing — exec_id: {String(m?.exec_id ?? "…")} · {String(m?.points ?? 0)} metric points written
+                        {m?.wf_trigger ? " · workflow: triggered" : " · workflow: ES-direct"}
+                      </span>
+                    </div>
+                  );
+                }
+                if (b.event === "guardian_verdict") {
+                  const m = b.meta as Record<string, unknown> | undefined;
+                  const isResolved = m?.verdict === "RESOLVED";
+                  const accent = isResolved ? "hsl(280 84% 60%)" : "hsl(0 84% 60%)";
+                  return (
+                    <div
+                      key={i}
+                      className="my-2 rounded-lg p-3 border"
+                      style={{
+                        background: `color-mix(in srgb, ${accent} 8%, transparent)`,
+                        borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`,
+                        boxShadow: `0 0 20px color-mix(in srgb, ${accent} 10%, transparent)`,
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" style={{ color: accent }} />
+                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: accent }}>
+                          Guardian — {isResolved ? "RESOLVED" : "ESCALATE"}
+                        </span>
+                        {m?.mttr_fmt && (
+                          <span className="ml-auto font-mono text-[10px]" style={{ color: accent }}>
+                            MTTR {String(m.mttr_fmt)}
+                          </span>
+                        )}
+                      </div>
+                      {m?.summary && (
+                        <p className="text-[10px] text-muted-foreground font-mono">{String(m.summary)}</p>
+                      )}
+                    </div>
+                  );
+                }
+                if (b.event === "remediation_skipped") {
+                  return (
+                    <div key={i} className="pl-4 text-[11px] font-mono text-muted-foreground/50 italic">
+                      ↷ {b.text}
+                    </div>
+                  );
+                }
+                if (b.event === "remediation_error") {
+                  return (
+                    <div
+                      key={i}
+                      className="my-1 rounded-lg px-3 py-2 border flex items-center gap-2"
+                      style={{
+                        background: "color-mix(in srgb, hsl(0 84% 60%) 8%, transparent)",
+                        borderColor: "color-mix(in srgb, hsl(0 84% 60%) 25%, transparent)",
+                      }}
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: "hsl(0 84% 60%)" }} />
+                      <span className="text-[10px] font-mono" style={{ color: "hsl(0 84% 60%)" }}>{b.text}</span>
                     </div>
                   );
                 }

@@ -3,7 +3,7 @@ import { motion, useInView } from "framer-motion";
 
 const metrics = [
   { label: "MTTR reduction", value: 91, suffix: "%" },
-  { label: "Live agents", value: 3, suffix: "" },
+  { label: "Live agents", value: 4, suffix: "" },
   { label: "Elastic indices monitored", value: 4, suffix: "" },
   { label: "Pipeline latency", value: 5, suffix: " min", prefix: "< " },
 ];
