@@ -1,0 +1,268 @@
+# =============================================================================
+# Workflow: QuantumState — Autonomous Remediation
+# Category: observability/sre
+#
+# Triggered by the QuantumState Surgeon agent when an anomaly exceeds the
+# confidence threshold. Orchestrates: validation → Kibana Case creation →
+# remediation action logging → audit trail.
+#
+# Import via:
+#   python elastic-setup/workflows/deploy_workflow.py
+# Or paste directly into Kibana → Workflows → Create workflow
+# =============================================================================
+version: "1"
+name: "QuantumState — Autonomous Remediation"
+description: |
+  Closed-loop SRE remediation workflow. Triggered when QuantumState's Surgeon
+  agent selects a remediation action with sufficient confidence.
+
+  Steps:
+    1. Validate confidence threshold (>= 0.8)
+    2. Create Kibana Case for incident tracking
+    3. Write action request to remediation-actions-quantumstate index
+    4. Index audit record in agent-decisions-quantumstate
+    5. (Optional) Slack notification if webhook configured
+enabled: true
+tags:
+  - quantumstate
+  - sre
+  - observability
+  - auto-remediation
+
+# ---------------------------------------------------------------------------
+# TRIGGERS
+# Manual trigger — invoked programmatically by the Python pipeline via
+# POST /api/workflows/{id}/run
+# ---------------------------------------------------------------------------
+triggers:
+  - type: manual
+
+# ---------------------------------------------------------------------------
+# CONSTANTS
+# Update slack_webhook if you have a Slack workspace configured.
+# ---------------------------------------------------------------------------
+consts:
+  slack_webhook: ""
+  confidence_threshold: 0.8
+  remediation_index: "remediation-actions-quantumstate"
+  decisions_index: "agent-decisions-quantumstate"
+
+# ---------------------------------------------------------------------------
+# INPUTS
+# Provided by the Python pipeline when triggering this workflow.
+# ---------------------------------------------------------------------------
+inputs:
+  - name: incident_id
+    type: string
+    description: Unique incident ID from the pipeline run
+    required: true
+
+  - name: service
+    type: string
+    description: Affected service name (e.g. payment-service)
+    required: true
+
+  - name: action
+    type: string
+    description: Remediation action (rollback_deployment | restart_service | scale_cache | restart_dependency)
+    required: true
+
+  - name: anomaly_type
+    type: string
+    description: Anomaly type from Cassandra (e.g. memory_leak_progressive)
+    required: true
+
+  - name: root_cause
+    type: string
+    description: Root cause from Archaeologist
+    required: true
+
+  - name: confidence_score
+    type: number
+    description: Surgeon confidence score (0.0 - 1.0)
+    required: true
+
+  - name: risk_level
+    type: string
+    description: Risk assessment (low | medium | high)
+    required: false
+
+steps:
+
+  # ---------------------------------------------------------------------------
+  # STEP 1: Log intake
+  # ---------------------------------------------------------------------------
+  - name: log-intake
+    type: console
+    with:
+      message: |
+        QuantumState Remediation Workflow triggered.
+        Incident: {{ inputs.incident_id }}
+        Service:  {{ inputs.service }}
+        Action:   {{ inputs.action }}
+        Anomaly:  {{ inputs.anomaly_type }}
+        Confidence: {{ inputs.confidence_score }}
+        Risk: {{ inputs.risk_level | default: "unknown" }}
+
+  # ---------------------------------------------------------------------------
+  # STEP 2: Validate confidence threshold
+  # Reject low-confidence actions before any changes are made.
+  # ---------------------------------------------------------------------------
+  - name: validate-confidence
+    type: if
+    condition: "inputs.confidence_score >= 0.8"
+    steps:
+
+      # -----------------------------------------------------------------------
+      # STEP 3: Create Kibana Case for incident tracking
+      # This gives the SRE team a full audit trail in Kibana Cases.
+      # -----------------------------------------------------------------------
+      - name: create-incident-case
+        type: kibana.createCaseDefaultSpace
+        with:
+          title: "[AUTO] {{ inputs.anomaly_type }} — {{ inputs.service }}"
+          description: |
+            ## QuantumState Autonomous Remediation
+
+            **Incident ID:** `{{ inputs.incident_id }}`
+            **Service:** `{{ inputs.service }}`
+            **Anomaly:** `{{ inputs.anomaly_type }}`
+            **Root Cause:** {{ inputs.root_cause }}
+
+            ---
+
+            **Remediation Action:** `{{ inputs.action }}`
+            **Confidence Score:** {{ inputs.confidence_score }}
+            **Risk Level:** {{ inputs.risk_level | default: "not assessed" }}
+
+            ---
+
+            *This case was created automatically by QuantumState v2.*
+            *The remediation runner will execute the action and update this record.*
+          owner: securitySolution
+          tags:
+            - quantumstate
+            - auto-remediation
+            - "{{ inputs.anomaly_type }}"
+          severity: medium
+          settings:
+            syncAlerts: false
+          connector:
+            fields: null
+            id: none
+            name: none
+            type: .none
+          fetcher:
+            skip_ssl_verification: true
+        on-failure:
+          continue: true
+
+      # -----------------------------------------------------------------------
+      # STEP 4: Write action request to remediation-actions index
+      # The Remediation Runner polls this index and executes the action.
+      # -----------------------------------------------------------------------
+      - name: write-action-request
+        type: elasticsearch.index
+        with:
+          index: "{{ consts.remediation_index }}"
+          document:
+            "@timestamp": "{{ now }}"
+            incident_id: "{{ inputs.incident_id }}"
+            service: "{{ inputs.service }}"
+            action: "{{ inputs.action }}"
+            anomaly_type: "{{ inputs.anomaly_type }}"
+            root_cause: "{{ inputs.root_cause }}"
+            confidence_score: "{{ inputs.confidence_score }}"
+            risk_level: "{{ inputs.risk_level | default: 'low' }}"
+            status: "pending"
+            triggered_by: "surgeon-agent"
+            workflow_triggered: true
+            case_id: "{{ steps.create-incident-case.output.id | default: '' }}"
+
+      # -----------------------------------------------------------------------
+      # STEP 5: Index audit record
+      # Full trace for compliance and post-mortem analysis.
+      # -----------------------------------------------------------------------
+      - name: write-audit-record
+        type: elasticsearch.index
+        with:
+          index: "{{ consts.decisions_index }}"
+          document:
+            "@timestamp": "{{ now }}"
+            agent: "remediation-workflow"
+            incident_id: "{{ inputs.incident_id }}"
+            service: "{{ inputs.service }}"
+            decision: "autonomous_remediation_triggered"
+            action: "{{ inputs.action }}"
+            confidence_score: "{{ inputs.confidence_score }}"
+            risk_level: "{{ inputs.risk_level | default: 'low' }}"
+            case_id: "{{ steps.create-incident-case.output.id | default: '' }}"
+            action_doc_id: "{{ steps.write-action-request.output._id }}"
+
+      # -----------------------------------------------------------------------
+      # STEP 6: Slack notification (optional — skipped if webhook not set)
+      # -----------------------------------------------------------------------
+      - name: notify-slack
+        type: if
+        condition: "consts.slack_webhook != ''"
+        steps:
+          - name: post-slack-message
+            type: http
+            with:
+              url: "{{ consts.slack_webhook }}"
+              method: POST
+              headers:
+                Content-Type: application/json
+              body:
+                text: ":rotating_light: *QuantumState Auto-Remediation Triggered*"
+                blocks:
+                  - type: section
+                    text:
+                      type: mrkdwn
+                      text: |
+                        *:rotating_light: QuantumState Auto-Remediation*
+                        *Service:* `{{ inputs.service }}`
+                        *Action:* `{{ inputs.action }}`
+                        *Confidence:* {{ inputs.confidence_score }}
+                        *Anomaly:* {{ inputs.anomaly_type }}
+                        *Incident:* `{{ inputs.incident_id }}`
+            on-failure:
+              continue: true
+
+      # -----------------------------------------------------------------------
+      # STEP 7: Log completion
+      # -----------------------------------------------------------------------
+      - name: log-completion
+        type: console
+        with:
+          message: |
+            Remediation workflow complete.
+            Action request written to {{ consts.remediation_index }}.
+            Case ID: {{ steps.create-incident-case.output.id | default: "case creation skipped" }}
+            Runner will pick up and execute: {{ inputs.action }} on {{ inputs.service }}
+
+    else:
+      # -----------------------------------------------------------------------
+      # Low confidence path — log rejection, no action taken
+      # -----------------------------------------------------------------------
+      - name: log-low-confidence
+        type: console
+        with:
+          message: |
+            Remediation REJECTED — confidence {{ inputs.confidence_score }} below threshold {{ consts.confidence_threshold }}.
+            Service: {{ inputs.service }} | Action: {{ inputs.action }}
+            No changes made. Incident escalated for human review.
+
+      - name: write-rejection-audit
+        type: elasticsearch.index
+        with:
+          index: "{{ consts.decisions_index }}"
+          document:
+            "@timestamp": "{{ now }}"
+            agent: "remediation-workflow"
+            incident_id: "{{ inputs.incident_id }}"
+            service: "{{ inputs.service }}"
+            decision: "remediation_rejected_low_confidence"
+            action: "{{ inputs.action }}"
+            confidence_score: "{{ inputs.confidence_score }}"
+            reason: "confidence below 0.8 threshold"

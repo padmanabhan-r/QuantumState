@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from routers import incidents, health, pipeline, chat, sim
+from routers import incidents, health, pipeline, chat, sim, remediate
 
 app = FastAPI(title="QuantumState SRE Console API", version="1.0.0")
 
@@ -30,6 +30,7 @@ app.include_router(health.router,    prefix="/api")
 app.include_router(pipeline.router,  prefix="/api")
 app.include_router(chat.router,      prefix="/api")
 app.include_router(sim.router,       prefix="/api")
+app.include_router(remediate.router, prefix="/api")
 
 
 @app.get("/api/ping")

@@ -76,6 +76,48 @@ QUANTUMSTATE_INDICES = {
             "context": {"type": "object", "enabled": False},
         }}
     },
+    "remediation-actions-quantumstate": {
+        "mappings": {"properties": {
+            "@timestamp":      {"type": "date"},
+            "incident_id":     {"type": "keyword"},
+            "service":         {"type": "keyword"},
+            "action":          {"type": "keyword"},
+            "anomaly_type":    {"type": "keyword"},
+            "confidence_score":{"type": "float"},
+            "risk_level":      {"type": "keyword"},
+            "triggered_by":    {"type": "keyword"},
+            "status":          {"type": "keyword"},
+            "exec_id":         {"type": "keyword"},
+            "executed_at":     {"type": "date"},
+            "workflow_triggered": {"type": "boolean"},
+            "case_id":         {"type": "keyword"},
+        }}
+    },
+    "remediation-results-quantumstate": {
+        "mappings": {"properties": {
+            "@timestamp":      {"type": "date"},
+            "incident_id":     {"type": "keyword"},
+            "service":         {"type": "keyword"},
+            "action":          {"type": "keyword"},
+            "exec_id":         {"type": "keyword"},
+            "outcome":         {"type": "keyword"},
+            "recovery_initiated": {"type": "boolean"},
+        }}
+    },
+    "approval-requests-quantumstate": {
+        "mappings": {"properties": {
+            "@timestamp":       {"type": "date"},
+            "incident_id":      {"type": "keyword"},
+            "service":          {"type": "keyword"},
+            "proposed_action":  {"type": "keyword"},
+            "reason":           {"type": "text"},
+            "evidence_summary": {"type": "text"},
+            "confidence_score": {"type": "float"},
+            "status":           {"type": "keyword"},
+            "resolved_by":      {"type": "keyword"},
+            "resolved_at":      {"type": "date"},
+        }}
+    },
 }
 
 PAST_INCIDENTS = [
