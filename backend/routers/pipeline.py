@@ -13,6 +13,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 router = APIRouter(tags=["pipeline"])
 
+_SELF_BASE = os.getenv("SELF_BASE_URL", "http://localhost:8000")
+
 AGENT_IDS = {
     "cassandra":     "cassandra-detection-agent",
     "archaeologist": "archaeologist-investigation-agent",
@@ -145,7 +147,7 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
 
         # 1. Trigger Kibana Workflow (creates Case + writes to ES coordination index)
         wf_resp = _req.post(
-            "http://localhost:8000/api/workflow/trigger",
+            f"{_SELF_BASE}/api/workflow/trigger",
             json=payload,
             timeout=15,
         )
@@ -153,7 +155,7 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
 
         # 2. Execute metric recovery immediately (runner pattern)
         rem_resp = _req.post(
-            "http://localhost:8000/api/remediate",
+            f"{_SELF_BASE}/api/remediate",
             json=payload,
             timeout=20,
         )
