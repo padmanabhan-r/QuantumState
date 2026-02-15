@@ -6,10 +6,9 @@ Falls back to synthetic recovery endpoint if Docker call fails.
 """
 import os
 import time
-import json
-import subprocess
 import datetime as dt
 import requests
+import docker as docker_sdk
 from elasticsearch import Elasticsearch, ConflictError
 from dotenv import load_dotenv
 
@@ -36,64 +35,47 @@ CONTAINER_MAP = {
 
 REDIS_CONTAINER = "auth-redis"
 
-
-# --- Docker MCP helpers ---
-
-def _mcp_call(tool: str, args: dict) -> dict:
-    """
-    Call docker-mcp via subprocess (uvx docker-mcp).
-    Returns {"ok": True/False, "output": str}.
-    """
-    payload = json.dumps({"tool": tool, "arguments": args})
-    try:
-        result = subprocess.run(
-            ["uvx", "docker-mcp"],
-            input=payload,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return {"ok": True, "output": result.stdout.strip()}
-        return {"ok": False, "output": result.stderr.strip()}
-    except Exception as e:
-        return {"ok": False, "output": str(e)}
+# Docker SDK client (uses mounted /var/run/docker.sock)
+_docker_client = docker_sdk.from_env()
 
 
 def execute_action(action_doc: dict) -> dict:
-    action      = action_doc.get("action")
-    service     = action_doc.get("service", "")
-    container   = CONTAINER_MAP.get(service, service)
+    action    = action_doc.get("action")
+    service   = action_doc.get("service", "")
+    container = CONTAINER_MAP.get(service, service)
 
     print(f"[runner] Executing {action} on {container}")
 
-    if action == "restart_service":
-        result = _mcp_call("docker_restart", {"container_name": container})
+    try:
+        c = _docker_client.containers.get(container)
 
-    elif action == "rollback_deployment":
-        # Stop current, start previous image tag
-        stop  = _mcp_call("docker_stop",  {"container_name": container})
-        start = _mcp_call("docker_run",   {
-            "image": f"quantumstate/{container}:previous",
-            "name":  container,
-            "detach": True,
-        })
-        result = start if stop["ok"] else stop
+        if action == "restart_service":
+            c.restart()
+            return {"ok": True, "output": f"restarted {container}"}
 
-    elif action == "scale_cache":
-        result = _mcp_call("docker_run", {
-            "image":  "redis:7-alpine",
-            "name":   f"{container}-cache-{int(time.time())}",
-            "detach": True,
-        })
+        elif action == "rollback_deployment":
+            c.stop()
+            c.start()
+            return {"ok": True, "output": f"stop+start {container}"}
 
-    elif action == "restart_dependency":
-        result = _mcp_call("docker_restart", {"container_name": REDIS_CONTAINER})
+        elif action == "scale_cache":
+            _docker_client.containers.run(
+                "redis:7-alpine",
+                name=f"{container}-cache-{int(time.time())}",
+                detach=True,
+            )
+            return {"ok": True, "output": "redis cache scaled"}
 
-    else:
-        result = {"ok": False, "output": f"Unknown action: {action}"}
+        elif action == "restart_dependency":
+            dep = _docker_client.containers.get(REDIS_CONTAINER)
+            dep.restart()
+            return {"ok": True, "output": f"restarted {REDIS_CONTAINER}"}
 
-    return result
+        else:
+            return {"ok": False, "output": f"Unknown action: {action}"}
+
+    except Exception as e:
+        return {"ok": False, "output": str(e)}
 
 
 def fallback_remediate(action_doc: dict) -> dict:

@@ -1,8 +1,5 @@
 FROM python:3.12-slim
 
-# Install uv (for uvx docker-mcp)
-RUN pip install --no-cache-dir uv
-
 WORKDIR /app
 
 COPY requirements.txt .
