@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-QuantumState is an autonomous SRE agent swarm system that detects, investigates, and auto-remediates production incidents using Elasticsearch 8.x, ES|QL, and Python. The system consists of 6 specialized agents that work together to predict failures before they cascade.
+QuantumState is an autonomous SRE agent swarm system that detects, investigates, and auto-remediates production incidents using Elasticsearch 9.x, ES|QL, and Python. The system consists of 3 specialized agents that work together to predict failures before they cascade.
+
+## Committing
+
+- NEVER add Co-Authored-By to commit messages
 
 ## Development Commands
 
