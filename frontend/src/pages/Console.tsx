@@ -1,15 +1,18 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Zap, Play, MessageSquare, Activity } from "lucide-react";
+import { ArrowLeft, Zap, Play, MessageSquare, Activity, Shield } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ElasticIcon from "@/components/ElasticIcon";
 import IncidentFeed from "@/components/console/IncidentFeed";
 import PipelinePanel from "@/components/console/PipelinePanel";
 import ChatPanel from "@/components/console/ChatPanel";
+import ActionsPanel from "@/components/console/ActionsPanel";
+import MttrStats from "@/components/console/MttrStats";
 
 const AGENTS = [
   { name: "Cassandra",     role: "Detection",    color: "hsl(221 83% 53%)" },
   { name: "Archaeologist", role: "Investigation", color: "hsl(188 94% 43%)" },
   { name: "Surgeon",       role: "Remediation",  color: "hsl(160 84% 39%)" },
+  { name: "Guardian",      role: "Verification", color: "hsl(280 84% 60%)" },
 ];
 
 const Console = () => {
@@ -84,6 +87,11 @@ const Console = () => {
         </div>
       </div>
 
+      {/* ── MTTR stats strip ── */}
+      <div className="border-b border-border bg-card/20 px-6 py-3 shrink-0">
+        <MttrStats />
+      </div>
+
       {/* ── Main two-panel layout ── */}
       <main className="flex flex-1 overflow-hidden">
 
@@ -118,15 +126,34 @@ const Console = () => {
           </Tabs>
         </div>
 
-        {/* Right panel — Incident Feed */}
+        {/* Right panel — Incidents + Actions tabs */}
         <div className="w-[460px] shrink-0 flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-card/40 flex items-center gap-2 shrink-0">
-            <Zap className="h-3.5 w-3.5 text-primary" />
-            <span className="text-sm font-semibold text-foreground">Live Incidents</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            <IncidentFeed />
-          </div>
+          <Tabs defaultValue="incidents" className="flex flex-col h-full overflow-hidden">
+            <div className="border-b border-border bg-card/40 px-4 py-2 shrink-0">
+              <TabsList className="h-9 bg-background/60 border border-border p-1 gap-1">
+                <TabsTrigger
+                  value="incidents"
+                  className="gap-1.5 rounded-md px-3 text-xs data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border data-[state=active]:border-primary/30"
+                >
+                  <Zap className="h-3 w-3" />
+                  Incidents
+                </TabsTrigger>
+                <TabsTrigger
+                  value="actions"
+                  className="gap-1.5 rounded-md px-3 text-xs data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 data-[state=active]:border data-[state=active]:border-emerald-500/30"
+                >
+                  <Shield className="h-3 w-3" />
+                  Actions
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="incidents" className="flex-1 overflow-y-auto p-4 mt-0 data-[state=inactive]:hidden">
+              <IncidentFeed />
+            </TabsContent>
+            <TabsContent value="actions" className="flex-1 overflow-y-auto p-4 mt-0 data-[state=inactive]:hidden">
+              <ActionsPanel />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
