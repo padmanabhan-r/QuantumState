@@ -165,10 +165,57 @@ quantumstate/
 
 ---
 
+## Live deployment
+
+| | |
+|---|---|
+| **Frontend** | https://quantumstate.online |
+| **Backend API** | https://quantumstate-backend-production.up.railway.app |
+
+Frontend on Vercel · Backend on Railway
+
+---
+
+## Real infrastructure (v0.3.0)
+
+`infra/` contains the real Docker services that the MCP runner operates against:
+
+```
+infra/
+├── services/base/        # FastAPI service containers (payment, checkout, auth, inventory)
+│   ├── main.py           # /health, /simulate/leak, /simulate/spike, /simulate/reset
+│   └── Dockerfile
+├── scraper/              # Polls /health every 10s, writes to metrics-quantumstate
+│   └── scraper.py
+├── mcp-runner/           # Polls remediation-actions, executes docker restart via SDK
+│   ├── runner.py
+│   └── Dockerfile
+└── docker-compose.yml    # All 7 containers: 4 services + Redis + scraper + runner
+```
+
+Start the full local infra:
+
+```bash
+cd infra && docker compose up -d
+```
+
+Inject a real memory leak:
+
+```bash
+curl -X POST http://localhost:8001/simulate/leak
+# Watch memory climb in docker stats
+# Run pipeline in Console → Guardian RESOLVED with real MTTR
+```
+
+**Proven result:** MTTR 7m 53s on real infrastructure (memory leak → `docker restart` → Guardian RESOLVED).
+
+---
+
 ## Getting started
 
 ### Prerequisites
 - Python 3.12+ · Node.js 18+
+- Docker (for real infrastructure demo)
 - Elastic Cloud deployment with Agent Builder enabled
 - All 4 agents + 12 tools created in Kibana (see `agents-definition.md`)
 
@@ -181,6 +228,7 @@ KIBANA_URL=https://your-deployment.kb.us-east-1.aws.elastic.cloud
 REMEDIATION_WORKFLOW_ID=workflow-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 AUTONOMOUS_MODE=true
 REMEDIATION_CONFIDENCE_THRESHOLD=0.75
+SELF_BASE_URL=https://your-backend.up.railway.app   # backend self-reference URL (Railway/production)
 ```
 
 ### Run
@@ -200,6 +248,7 @@ REMEDIATION_CONFIDENCE_THRESHOLD=0.75
 
 ## Demo sequence
 
+### Synthetic demo (Sim Control)
 1. **Sim Control → Run Setup** — creates indices, seeds 24h baseline + 4 historical incidents
 2. **Sim Control → Start Stream** — live metrics every 30s
 3. **Sim Control → Inject → Memory Leak (payment-service)**
@@ -208,10 +257,18 @@ REMEDIATION_CONFIDENCE_THRESHOLD=0.75
 6. **Console → Actions tab** — executed action with exec_id
 7. **Console → Incidents tab** — closed incident with MTTR
 
+### Real infrastructure demo
+1. `cd infra && docker compose up -d`
+2. `curl -X POST http://localhost:8001/simulate/leak`
+3. Wait ~3 min for scraper to detect rising memory
+4. **Console → Run Pipeline** → Surgeon autonomous remediation fires
+5. MCP runner executes `docker restart payment-service`
+6. **Console → Verify with Guardian** → RESOLVED
+
 ---
 
 ## Hackathon context
 
 **Event:** Elastic Agent Builder Hackathon · **Prize pool:** $20,000
 **Tracks:** Multi-agent systems + Time-series anomaly detection
-**Measured outcome:** MTTR reduced from ~47 minutes (manual) to ~4 minutes (autonomous)
+**Measured outcome:** MTTR reduced from ~47 minutes (manual) to 7m 53s (autonomous, real infrastructure)
