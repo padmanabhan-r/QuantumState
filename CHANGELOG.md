@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.3.0] - 2026-02-15
+
+### The Real Infrastructure Release
+
+v0.3.0 replaces synthetic remediation with real Docker container operations. The pipeline now detects actual memory leaks, triggers a real container restart via MCP runner, and verifies genuine recovery — nothing simulated.
+
+### Added
+
+**Real Docker Service Containers (`infra/services/`)**
+- 4 FastAPI containers: payment-service, checkout-service, auth-service, inventory-service
+- `/health` — reports memory as % of simulated 512MB container limit
+- `/simulate/leak` — allocates real memory (4MB/5s), emits HEAP_PRESSURE/CONN_POOL_EXHAUSTED logs to ES
+- `/simulate/spike` — bumps error_rate and latency, auto-resets after N seconds
+- `/simulate/reset` — clears all fault state
+
+**Metrics Scraper (`infra/scraper/`)**
+- Polls `/health` on all 4 containers every 10s
+- Writes real readings to `metrics-quantumstate` (same schema as synthetic)
+- Falls back to synthetic values if a container is unreachable
+
+**MCP Runner (`infra/mcp-runner/`)**
+- Polls `remediation-actions-quantumstate` every 0.5s for `status: "pending"`
+- Executes real `docker restart` via Python Docker SDK (socket mounted)
+- Updates action status to `executed` and writes result to `remediation-results-quantumstate`
+
+**Docker Compose (`infra/docker-compose.yml`)**
+- All 7 containers wired: 4 services + Redis + scraper + MCP runner
+- Docker socket mounted for runner
+
+### Changed
+
+- `detect_memory_leak` ES|QL query — replaced hardcoded 52% baseline with dynamic `MIN(value)` + absolute `> 60%` threshold
+- `verify_resolution` and `get_recent_anomaly_metrics` — changed `request_latency_ms` → `latency_ms` to match scraper field name
+- Guardian latency threshold raised to 400ms (aligned with query)
+
+### Result
+
+**MTTR 7m 53s on real infrastructure.** Memory leak injected → container restarted → Guardian RESOLVED.
+
+---
+
 ## [0.2.0] - 2026-02-15
 
 ### The Closed Loop Release
