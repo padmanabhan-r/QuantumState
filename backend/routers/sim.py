@@ -61,11 +61,24 @@ QUANTUMSTATE_INDICES = {
     },
     "incidents-quantumstate": {
         "mappings": {"properties": {
-            "@timestamp": {"type": "date"}, "service": {"type": "keyword"},
-            "region": {"type": "keyword"}, "anomaly_type": {"type": "keyword"},
-            "root_cause": {"type": "text"}, "actions_taken": {"type": "text"},
-            "resolved_at": {"type": "date"}, "mttr_seconds": {"type": "integer"},
-            "status": {"type": "keyword"},
+            "@timestamp":         {"type": "date"},
+            "service":            {"type": "keyword"},
+            "region":             {"type": "keyword"},
+            "anomaly_type":       {"type": "keyword"},
+            "root_cause":         {"type": "text"},
+            "action_taken":       {"type": "text"},
+            "recommended_action": {"type": "keyword"},
+            "confidence_score":   {"type": "float"},
+            "risk_level":         {"type": "keyword"},
+            "resolved_at":        {"type": "date"},
+            "mttr_seconds":       {"type": "integer"},
+            "mttr_estimate":      {"type": "keyword"},
+            "status":             {"type": "keyword"},
+            "resolution_status":  {"type": "keyword"},
+            "pipeline_run":       {"type": "boolean"},
+            "pipeline_summary":   {"type": "text"},
+            "guardian_verified":  {"type": "boolean"},
+            "lessons_learned":    {"type": "text"},
         }}
     },
     "agent-decisions-quantumstate": {
@@ -91,6 +104,7 @@ QUANTUMSTATE_INDICES = {
             "executed_at":     {"type": "date"},
             "workflow_triggered": {"type": "boolean"},
             "case_id":         {"type": "keyword"},
+            "root_cause":      {"type": "text"},
         }}
     },
     "remediation-results-quantumstate": {
@@ -125,28 +139,28 @@ PAST_INCIDENTS = [
         "service": "payment-service", "region": "us-east-1",
         "anomaly_type": "memory_leak_progressive",
         "root_cause": "Memory leak in JDBC connection pool introduced by deploy v2.1.0.",
-        "actions_taken": "Rolled back to v2.0.9. Memory stabilised at 52%.",
+        "action_taken": "Rolled back to v2.0.9. Memory stabilised at 52%.",
         "mttr_seconds": 2820, "days_ago": 14,
     },
     {
         "service": "auth-service", "region": "us-west-2",
         "anomaly_type": "error_spike_sudden",
         "root_cause": "Redis session cache became unavailable. Auth fell back to DB lookups.",
-        "actions_taken": "Restarted Redis cluster. Scaled DB connection pool.",
+        "action_taken": "Restarted Redis cluster. Scaled DB connection pool.",
         "mttr_seconds": 960, "days_ago": 7,
     },
     {
         "service": "checkout-service", "region": "us-east-1",
         "anomaly_type": "deployment_regression",
         "root_cause": "Deploy v3.4.2 introduced unhandled NPE in cart serialisation.",
-        "actions_taken": "Immediate rollback to v3.4.1.",
+        "action_taken": "Immediate rollback to v3.4.1.",
         "mttr_seconds": 480, "days_ago": 3,
     },
     {
         "service": "inventory-service", "region": "eu-west-1",
         "anomaly_type": "memory_leak_progressive",
         "root_cause": "Unbounded in-memory cache for product catalogue.",
-        "actions_taken": "Added LRU eviction. Deployed hotfix v1.8.3.",
+        "action_taken": "Added LRU eviction. Deployed hotfix v1.8.3.",
         "mttr_seconds": 5400, "days_ago": 21,
     },
 ]
@@ -261,10 +275,12 @@ def run_setup():
         inc_docs.append({"_index": "incidents-quantumstate", "_source": {
             "@timestamp": ts.isoformat(), "service": inc["service"],
             "region": inc["region"], "anomaly_type": inc["anomaly_type"],
-            "root_cause": inc["root_cause"], "actions_taken": inc["actions_taken"],
+            "root_cause": inc["root_cause"], "action_taken": inc["actions_taken"],
             "resolved_at": (ts + timedelta(seconds=inc["mttr_seconds"])).isoformat(),
             "mttr_seconds": inc["mttr_seconds"], "status": "resolved",
             "resolution_status": "RESOLVED",
+            "pipeline_run": True,
+            "guardian_verified": True,
         }})
     es.bulk(operations=[op for d in inc_docs for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
 
