@@ -1,0 +1,111 @@
+version: "3.9"
+
+# QuantumState — Phase 3 Infrastructure
+# Runs 4 fake microservices + Redis + metrics scraper + MCP runner
+# Usage:
+#   docker compose up --build          # start everything
+#   docker compose up payment-service  # start one service only
+
+services:
+
+  # --- Microservices ---
+
+  payment-service:
+    build: ./services/base
+    container_name: payment-service
+    environment:
+      SERVICE_NAME: payment-service
+      SERVICE_PORT: "8001"
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  checkout-service:
+    build: ./services/base
+    container_name: checkout-service
+    environment:
+      SERVICE_NAME: checkout-service
+      SERVICE_PORT: "8002"
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  auth-service:
+    build: ./services/base
+    container_name: auth-service
+    environment:
+      SERVICE_NAME: auth-service
+      SERVICE_PORT: "8003"
+    ports:
+      - "8003:8003"
+    depends_on:
+      - auth-redis
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  inventory-service:
+    build: ./services/base
+    container_name: inventory-service
+    environment:
+      SERVICE_NAME: inventory-service
+      SERVICE_PORT: "8004"
+    ports:
+      - "8004:8004"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # --- Redis (auth-service dependency) ---
+
+  auth-redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    ports:
+      - "6379:6379"
+
+  # --- Metrics Scraper ---
+
+  scraper:
+    build: ./scraper
+    container_name: qs-scraper
+    env_file:
+      - ../.env
+    environment:
+      PAYMENT_SERVICE_URL:   http://payment-service:8001
+      CHECKOUT_SERVICE_URL:  http://checkout-service:8002
+      AUTH_SERVICE_URL:      http://auth-service:8003
+      INVENTORY_SERVICE_URL: http://inventory-service:8004
+      SCRAPE_INTERVAL_SECONDS: "15"
+    depends_on:
+      - payment-service
+      - checkout-service
+      - auth-service
+      - inventory-service
+    restart: unless-stopped
+
+  # --- MCP Runner ---
+
+  mcp-runner:
+    build: ./mcp-runner
+    container_name: qs-mcp-runner
+    env_file:
+      - ../.env
+    environment:
+      POLL_INTERVAL_SECONDS: "0.5"
+      BACKEND_URL: http://host.docker.internal:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
