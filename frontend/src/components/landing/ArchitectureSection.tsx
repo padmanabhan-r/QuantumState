@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import ElasticIcon from "@/components/ElasticIcon";
-import architectureFlow from "@/assets/architecture-flow.svg";
+import architectureFlow from "@/assets/architecture-flow.svg?raw";
 
 const liveAgents    = ["Cassandra", "Archaeologist", "Surgeon", "Guardian"];
 const roadmapAgents = ["Tactician", "Diplomat"];
@@ -142,13 +142,33 @@ const ArchitectureSection = () => {
           <p className="text-center text-sm text-muted-foreground mb-8">
             End-to-end sequence — from anomaly detection to verified resolution
           </p>
-          <div className="overflow-x-auto rounded-xl border border-border bg-[#111117]">
-            <img
-              src={architectureFlow}
-              alt="QuantumState autonomous SRE pipeline flow diagram"
-              className="w-full min-w-[900px]"
-              draggable={false}
+          <div className="relative group">
+            {/* Outer glow ring */}
+            <div
+              className="absolute -inset-px rounded-2xl opacity-60 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+              style={{
+                background: "linear-gradient(135deg, hsl(221 83% 53% / 0.25), hsl(188 94% 43% / 0.15), hsl(221 83% 53% / 0.1))",
+                filter: "blur(1px)",
+              }}
             />
+            <div
+              className="relative overflow-x-auto rounded-2xl border border-primary/20 p-1"
+              style={{ background: "linear-gradient(180deg, hsl(222 47% 6%), hsl(222 47% 4%))" }}
+            >
+              {/* macOS-style title bar */}
+              <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border/50">
+                <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
+                <span className="h-2.5 w-2.5 rounded-full bg-warning/70" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--success)/0.7)]" />
+                <span className="ml-3 text-[10px] font-mono text-muted-foreground/60">
+                  quantumstate pipeline flow
+                </span>
+              </div>
+              <div
+                className="w-full min-w-[900px]"
+                dangerouslySetInnerHTML={{ __html: architectureFlow }}
+              />
+            </div>
           </div>
         </motion.div>
 
