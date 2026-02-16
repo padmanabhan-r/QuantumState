@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, Container, FlaskConical } from "lucide-react";
+import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ElasticIcon from "@/components/ElasticIcon";
 import { API as API_BASE } from "@/lib/config";
@@ -20,18 +20,12 @@ const SYNTH_SCENARIOS = [
   { key: "error_spike",  icon: "⚡", title: "Error Spike",  service: "auth-service",    desc: "Unhandled exception. Errors 28/min, latency 1200ms." },
 ] as const;
 
-const DOCKER_SCENARIOS = [
-  { key: "leak",  port: 8001, icon: "🧠", title: "Memory Leak",  service: "payment-service",  desc: "Allocates 4MB every 5s. Real heap growth visible in docker stats." },
-  { key: "spike", port: 8002, icon: "⚡", title: "Error Spike",  service: "checkout-service", desc: "Error rate 18-24/min, latency 800-1400ms. 10 min duration." },
-] as const;
-
 const SHORT = (name: string) => name.replace("-quantumstate", "");
 
 export default function SimControl() {
-  const [status, setStatus]   = useState<StatusData | null>(null);
-  const [busy, setBusy]       = useState<string | null>(null);
-  const [toast, setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
-  const [simMode, setSimMode] = useState<"docker" | "synthetic">("docker");
+  const [status, setStatus] = useState<StatusData | null>(null);
+  const [busy, setBusy]     = useState<string | null>(null);
+  const [toast, setToast]   = useState<{ msg: string; ok: boolean } | null>(null);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -55,31 +49,6 @@ export default function SimControl() {
       if (res.ok === false && res.error) throw new Error(res.error);
       showToast(label);
       await refreshStatus();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Error", false);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function dockerInject(key: string, port: number, title: string, endpoint: string) {
-    setBusy(`docker-${key}`);
-    try {
-      const res = await fetch(`http://localhost:${port}/simulate/${endpoint}`, { method: "POST" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      showToast(`${title} injected on port ${port}`);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Error", false);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function dockerReset(key: string, port: number) {
-    setBusy(`reset-${key}`);
-    try {
-      await fetch(`http://localhost:${port}/simulate/reset`, { method: "POST" });
-      showToast(`${key} reset`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Error", false);
     } finally {
@@ -116,7 +85,7 @@ export default function SimControl() {
       {/* Body */}
       <main className="flex-1 p-6 flex flex-col gap-6">
 
-        {/* ── Baseline Setup (common) ─────────────────────────────── */}
+        {/* ── Baseline Setup ───────────────────────────────────────── */}
         <section className="rounded-xl border border-border bg-card p-4 flex items-center gap-6">
           <div className="shrink-0">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Baseline Setup</div>
@@ -148,142 +117,69 @@ export default function SimControl() {
           </Button>
         </section>
 
-        {/* ── Mode toggle ─────────────────────────────────────────── */}
-        <div className="flex gap-1 rounded-xl border border-border bg-card p-1 w-fit">
-          {([["docker", "Real Infra — Docker Sim", "hsl(160 84% 39%)"], ["synthetic", "Synthetic Sim", "hsl(221 83% 53%)"]] as const).map(([mode, label, accent]) => (
-            <button
-              key={mode}
-              onClick={() => setSimMode(mode)}
-              className="rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
-              style={simMode === mode ? {
-                background: `color-mix(in srgb, ${accent} 15%, transparent)`,
-                border: `1px solid color-mix(in srgb, ${accent} 35%, transparent)`,
-                color: accent,
+        {/* ── Synthetic Sim ────────────────────────────────────────── */}
+        <section className="rounded-xl border bg-card flex flex-col gap-4 p-4"
+          style={{ borderColor: "hsl(221 83% 53% / 0.3)", boxShadow: "0 0 20px hsl(221 83% 53% / 0.06)" }}>
+          <div className="flex items-center gap-2">
+            <FlaskConical className="h-4 w-4" style={{ color: "hsl(221 83% 53%)" }} />
+            <span className="text-sm font-semibold" style={{ color: "hsl(221 83% 53%)" }}>Synthetic Simulation</span>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Writes synthetic anomaly data directly to Elasticsearch. No Docker required.
+          </p>
+
+          {/* Live Streamer */}
+          <div className="rounded-lg border border-border p-3 flex items-center gap-3" style={{ background: "hsl(222 47% 3%)" }}>
+            <div className="flex-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Live Streamer</div>
+              <p className="text-xs text-muted-foreground">Emits metrics every 30s across all 4 services.</p>
+            </div>
+            <span
+              className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border shrink-0"
+              style={streaming ? {
+                color: "hsl(160 84% 39%)", borderColor: "hsl(160 84% 39% / 0.3)", background: "hsl(160 84% 39% / 0.08)",
               } : {
-                border: "1px solid transparent",
-                color: "hsl(var(--muted-foreground))",
+                color: "hsl(38 92% 50%)", borderColor: "hsl(38 92% 50% / 0.3)", background: "hsl(38 92% 50% / 0.08)",
               }}
             >
-              {label}
-            </button>
-          ))}
-        </div>
+              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: streaming ? "hsl(160 84% 39%)" : "hsl(38 92% 50%)" }} />
+              {streaming ? "Streaming" : "Stopped"}
+            </span>
+            {streaming ? (
+              <Button size="sm" variant="outline" disabled={busy === "stream"} onClick={() => action("stream", `${API}/stream/stop`, "Streamer stopped")}>
+                <Square className="h-3.5 w-3.5 mr-1.5" /> Stop
+              </Button>
+            ) : (
+              <Button size="sm" disabled={busy === "stream"} onClick={() => action("stream", `${API}/stream/start`, "Streamer started")} className="bg-gradient-blue text-white">
+                {busy === "stream" ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
+                Start
+              </Button>
+            )}
+          </div>
 
-        <div className="grid grid-cols-1 gap-6">
-
-          {/* ── Real Infra — Docker Sim ── */}
-          {simMode === "docker" && (
-          <section className="rounded-xl border bg-card flex flex-col gap-4 p-4"
-            style={{ borderColor: "hsl(160 84% 39% / 0.3)", boxShadow: "0 0 20px hsl(160 84% 39% / 0.06)" }}>
-            <div className="flex items-center gap-2">
-              <Container className="h-4 w-4" style={{ color: "hsl(160 84% 39%)" }} />
-              <span className="text-sm font-semibold" style={{ color: "hsl(160 84% 39%)" }}>Real Infra — Docker Sim</span>
-              <span className="ml-auto text-[10px] font-mono text-muted-foreground">cd infra &amp;&amp; docker compose up -d</span>
-            </div>
-            <p className="text-xs text-muted-foreground -mt-2">
-              Injects faults into live Docker containers. Scraper detects real metrics. MCP runner executes actual container restarts.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {DOCKER_SCENARIOS.map((s) => (
-                <div key={s.key} className="rounded-lg border border-border p-3 flex flex-col gap-2" style={{ background: "hsl(222 47% 3%)" }}>
-                  <div>
-                    <div className="font-semibold text-sm text-foreground">{s.icon} {s.title}</div>
-                    <div className="font-mono text-[10px] text-secondary mt-0.5">{s.service}</div>
-                    <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">{s.desc}</p>
-                  </div>
-                  <div className="flex gap-1.5 mt-auto">
-                    <Button
-                      size="sm"
-                      disabled={busy === `docker-${s.key}`}
-                      onClick={() => dockerInject(s.key, s.port, s.title, s.key === "leak" ? "leak" : "spike?duration=600")}
-                      className="flex-1 text-white"
-                      style={{ background: "hsl(160 84% 39%)" }}
-                    >
-                      {busy === `docker-${s.key}` ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
-                      Inject
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy === `reset-${s.key}`}
-                      onClick={() => dockerReset(s.key, s.port)}
-                      className="px-2"
-                    >
-                      {busy === `reset-${s.key}` ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Reset"}
-                    </Button>
-                  </div>
+          {/* Inject Anomaly */}
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Inject Anomaly</div>
+          <div className="grid grid-cols-2 gap-3">
+            {SYNTH_SCENARIOS.map((s) => (
+              <div key={s.key} className="rounded-lg border border-border p-3 flex flex-col gap-2" style={{ background: "hsl(222 47% 3%)" }}>
+                <div>
+                  <div className="font-semibold text-sm text-foreground">{s.icon} {s.title}</div>
+                  <div className="font-mono text-[10px] text-secondary mt-0.5">{s.service}</div>
+                  <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">{s.desc}</p>
                 </div>
-              ))}
-            </div>
-          </section>
-          )}
-
-          {/* ── Synthetic Sim ── */}
-          {simMode === "synthetic" && (
-          <section className="rounded-xl border bg-card flex flex-col gap-4 p-4"
-            style={{ borderColor: "hsl(221 83% 53% / 0.3)", boxShadow: "0 0 20px hsl(221 83% 53% / 0.06)" }}>
-            <div className="flex items-center gap-2">
-              <FlaskConical className="h-4 w-4" style={{ color: "hsl(221 83% 53%)" }} />
-              <span className="text-sm font-semibold" style={{ color: "hsl(221 83% 53%)" }}>Synthetic Sim</span>
-            </div>
-            <p className="text-xs text-muted-foreground -mt-2">
-              Writes synthetic anomaly data directly to Elasticsearch. No Docker required.
-            </p>
-
-            {/* Live Streamer */}
-            <div className="rounded-lg border border-border p-3 flex items-center gap-3" style={{ background: "hsl(222 47% 3%)" }}>
-              <div className="flex-1">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Live Streamer</div>
-                <p className="text-xs text-muted-foreground">Emits metrics every 30s across all 4 services.</p>
+                <Button
+                  size="sm"
+                  disabled={busy === `inject-${s.key}`}
+                  onClick={() => action(`inject-${s.key}`, `${API}/inject/${s.key}`, `${s.title} injected`)}
+                  className="bg-gradient-blue text-white w-full mt-auto"
+                >
+                  {busy === `inject-${s.key}` ? <RefreshCw className="h-3 w-3 animate-spin mr-1.5" /> : null}
+                  Inject
+                </Button>
               </div>
-              <span
-                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border shrink-0"
-                style={streaming ? {
-                  color: "hsl(160 84% 39%)", borderColor: "hsl(160 84% 39% / 0.3)", background: "hsl(160 84% 39% / 0.08)",
-                } : {
-                  color: "hsl(38 92% 50%)", borderColor: "hsl(38 92% 50% / 0.3)", background: "hsl(38 92% 50% / 0.08)",
-                }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: streaming ? "hsl(160 84% 39%)" : "hsl(38 92% 50%)" }} />
-                {streaming ? "Streaming" : "Stopped"}
-              </span>
-              {streaming ? (
-                <Button size="sm" variant="outline" disabled={busy === "stream"} onClick={() => action("stream", `${API}/stream/stop`, "Streamer stopped")}>
-                  <Square className="h-3.5 w-3.5 mr-1.5" /> Stop
-                </Button>
-              ) : (
-                <Button size="sm" disabled={busy === "stream"} onClick={() => action("stream", `${API}/stream/start`, "Streamer started")} className="bg-gradient-blue text-white">
-                  {busy === "stream" ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
-                  Start
-                </Button>
-              )}
-            </div>
-
-            {/* Inject Anomaly */}
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Inject Anomaly</div>
-            <div className="grid grid-cols-2 gap-3">
-              {SYNTH_SCENARIOS.map((s) => (
-                <div key={s.key} className="rounded-lg border border-border p-3 flex flex-col gap-2" style={{ background: "hsl(222 47% 3%)" }}>
-                  <div>
-                    <div className="font-semibold text-sm text-foreground">{s.icon} {s.title}</div>
-                    <div className="font-mono text-[10px] text-secondary mt-0.5">{s.service}</div>
-                    <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">{s.desc}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={busy === `inject-${s.key}`}
-                    onClick={() => action(`inject-${s.key}`, `${API}/inject/${s.key}`, `${s.title} injected`)}
-                    className="bg-gradient-blue text-white w-full mt-auto"
-                  >
-                    {busy === `inject-${s.key}` ? <RefreshCw className="h-3 w-3 animate-spin mr-1.5" /> : null}
-                    Inject
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-          )}
-        </div>
+            ))}
+          </div>
+        </section>
 
         {/* ── Cleanup ─────────────────────────────────────────────── */}
         <section className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">

@@ -5,6 +5,8 @@ const pills = [
   "🔍 ES|QL anomaly detection",
   "🔗 Evidence chain correlation",
   "⚡ Sub-5-minute MTTR",
+  "🐳 MCP Runner · Docker restart",
+  "📋 Elastic Workflow · Case audit",
 ];
 
 const WhatIsSection = () => {
@@ -32,6 +34,13 @@ const WhatIsSection = () => {
                 Built entirely on <span className="text-foreground font-semibold">Elastic Agent Builder</span>,
                 every agent uses native ES|QL queries and tool-calling to investigate real data in your
                 Elasticsearch cluster.
+              </p>
+              <p>
+                When confidence reaches ≥ 0.8, Surgeon triggers an{" "}
+                <span className="text-foreground font-semibold">Elastic Workflow</span> that creates a case
+                for the audit trail, then hands off to the{" "}
+                <span className="text-foreground font-semibold">MCP Runner</span> — a sidecar process that
+                polls Elasticsearch and executes the actual container restart via Docker socket.
               </p>
             </div>
 
