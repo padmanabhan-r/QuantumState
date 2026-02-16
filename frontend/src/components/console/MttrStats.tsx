@@ -40,7 +40,7 @@ const STATS = (data: ReturnType<typeof useIncidentStats>["data"], isError: boole
       icon: <TrendingDown className="h-4 w-4" />,
       label: "Time Saved",
       value: reduction > 0 ? `${reduction}%` : "—",
-      sub: "vs 47min manual avg",
+      sub: "vs 47 min manual baseline",
       accent: "hsl(38 92% 50%)",
       glow:   "hsl(38 92% 50% / 0.15)",
     },

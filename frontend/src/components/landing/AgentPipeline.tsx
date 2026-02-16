@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 const agents = [
   { name: "Cassandra",     role: "Detection",    icon: "📡", delay: 0,   status: "live"    as const },
   { name: "Archaeologist", role: "Investigation", icon: "🔬", delay: 0.1, status: "live"    as const },
-  { name: "Surgeon",       role: "Remediation",  icon: "🩺", delay: 0.2, status: "live"    as const },
+  { name: "Surgeon",       role: "Execution",    icon: "🩺", delay: 0.2, status: "live"    as const },
   { name: "Guardian",      role: "Verification", icon: "🛡️", delay: 0.3, status: "live"    as const },
   { name: "Tactician",     role: "Decision",     icon: "🧠", delay: 0.4, status: "roadmap" as const },
   { name: "Diplomat",      role: "Approval Gate",icon: "🤝", delay: 0.5, status: "roadmap" as const },

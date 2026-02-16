@@ -39,11 +39,13 @@ const RoadmapSection = () => {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.15 }}
               whileHover={{ y: -6 }}
-              className="relative rounded-lg border border-dashed border-warning/40 bg-card p-6 flex flex-col gap-4 transition-all opacity-80"
+              className="rounded-lg border border-dashed border-warning/40 bg-card p-6 flex flex-col gap-4 transition-all opacity-80"
             >
-              <Badge className="absolute top-3 right-3 bg-warning/15 text-warning border-warning/30 text-[10px]">
-                COMING SOON
-              </Badge>
+              <div className="flex items-center justify-between gap-3">
+                <Badge className="bg-warning/15 text-warning border-warning/30 text-[10px]">
+                  COMING SOON
+                </Badge>
+              </div>
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 <span className="text-2xl">{agent.icon}</span>
                 {agent.title}

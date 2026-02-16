@@ -25,11 +25,11 @@ const steps = [
     step: "03",
     icon: "🩺",
     label: "Resolve",
-    title: "Surgeon executes the fix",
-    body: "Runs targeted remediation — rollback, restart, circuit-break — with real-time verification. Writes the full incident report to Elasticsearch for post-mortem.",
+    title: "Surgeon triggers the fix",
+    body: "Samples current metrics, logs the remediation action to Elasticsearch, and triggers the Elastic Workflow — which hands off to the MCP Runner to execute the actual container restart via Docker socket. Confidence must reach ≥ 0.8 for autonomous action.",
     accent: "hsl(160 84% 39%)",        // green
     glow:   "hsl(160 84% 39% / 0.15)",
-    tags:   ["Live Metric Sampling", "Resolution Verification", "Remediation Audit"],
+    tags:   ["Pre-Fix Metric Sampling", "Workflow Trigger (conf ≥ 0.8)", "Remediation Audit Log"],
   },
   {
     step: "04",
