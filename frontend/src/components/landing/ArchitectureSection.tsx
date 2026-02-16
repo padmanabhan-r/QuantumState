@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import ElasticIcon from "@/components/ElasticIcon";
+import architectureFlow from "@/assets/architecture-flow.svg";
 
 const liveAgents    = ["Cassandra", "Archaeologist", "Surgeon", "Guardian"];
 const roadmapAgents = ["Tactician", "Diplomat"];
@@ -126,6 +127,31 @@ const ArchitectureSection = () => {
             </div>
           </div>
         </motion.div>
+
+        {/* Pipeline flow diagram */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mt-20"
+        >
+          <h3 className="text-center text-lg font-semibold text-foreground mb-2">
+            Full Pipeline Flow
+          </h3>
+          <p className="text-center text-sm text-muted-foreground mb-8">
+            End-to-end sequence — from anomaly detection to verified resolution
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-border bg-[#111117]">
+            <img
+              src={architectureFlow}
+              alt="QuantumState autonomous SRE pipeline flow diagram"
+              className="w-full min-w-[900px]"
+              draggable={false}
+            />
+          </div>
+        </motion.div>
+
       </div>
     </section>
   );
