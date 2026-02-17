@@ -118,12 +118,10 @@ export default function SimControl() {
           <Zap className="h-4 w-4 text-secondary fill-secondary" />
           <span className="text-gradient-blue font-bold">QuantumState</span>
           <span className="rounded border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-            Sim Control
+            Simulation &amp; Setup
           </span>
         </div>
-        <span className="hidden md:block text-sm text-muted-foreground italic">
-          Simulates a live production environment for the autonomous SRE pipeline demo
-        </span>
+
         <div className="ml-auto font-mono text-xs flex items-center gap-1.5 text-muted-foreground">
           <ElasticIcon size={13} /> Elastic Agent Builder
         </div>

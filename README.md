@@ -77,15 +77,15 @@ Continuously monitors system metrics using rolling time windows. Instead of rely
 
 ### 🔍 Archaeologist — Investigate
 
-Takes the anomaly context and correlates it with surrounding signals — logs, recent deployment events, and related system activity. Rather than identifying symptoms in isolation, it constructs an evidence chain linking cause to effect.
+Takes the anomaly context and correlates it with surrounding signals — logs, recent deployment events, and historical incidents. Rather than identifying symptoms in isolation, it constructs an evidence chain linking cause to effect. The `find_similar_incidents` tool uses ELSER-powered hybrid search to surface semantically similar past incidents, even when described in completely different language.
 
 **Tools:** `search_error_logs` · `correlate_deployments` · `find_similar_incidents`
 
 ### ⚕️ Surgeon — Resolve
 
-Evaluates possible remediation actions based on the detected anomaly and confidence score. Samples current service state, logs the intended action, then — if confidence ≥ 0.8 — calls `quantumstate.autonomous_remediation` directly to trigger the Kibana Workflow. The Workflow creates an audit Case and queues the action for the MCP Runner. Recovery verification is left to Guardian.
+Evaluates possible remediation actions based on the detected anomaly and confidence score. Samples current service state, retrieves the most relevant runbook from a semantically searchable procedure library, logs the intended action, then — if confidence ≥ 0.8 — calls `quantumstate.autonomous_remediation` directly to trigger the Kibana Workflow. The Workflow creates an audit Case and queues the action for the MCP Runner. Recovery verification is left to Guardian.
 
-**Tools:** `log_remediation_action` · `get_recent_anomaly_metrics` · `verify_resolution` · `quantumstate.autonomous_remediation`
+**Tools:** `get_recent_anomaly_metrics` · `find_relevant_runbook` · `log_remediation_action` · `verify_resolution` · `quantumstate.autonomous_remediation`
 
 ### 🛡️ Guardian — Verify
 
@@ -154,7 +154,17 @@ Then enable both features in **Stack Management → Advanced Settings**:
 
 This is a one-time step. Without it, the workflow deploy and agent setup will fail.
 
-### Step 2: Deploy the Remediation Workflow
+### Step 2: Deploy ELSER (Elastic Learned Sparse Encoder)
+
+QuantumState uses ELSER for semantic search across historical incidents and runbooks. Deploy it once:
+
+```bash
+python elastic-setup/setup_elser.py
+```
+
+This creates the `.elser-2-elasticsearch` inference endpoint on your cluster. If ELSER is already deployed, the script detects this and exits immediately. This step is required before creating agents — two of the tools (`find_similar_incidents` and `find_relevant_runbook`) use Index Search against ELSER-indexed data, and Kibana validates the indices exist at tool creation time.
+
+### Step 3: Deploy the Remediation Workflow
 
 The workflow must exist before agents are created — the Surgeon agent requires its ID.
 
@@ -170,22 +180,39 @@ REMEDIATION_WORKFLOW_ID=workflow-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 Alternatively, create the workflow manually in the Kibana UI by importing `elastic-setup/workflows/remediation-workflow.yaml`.
 
-### Step 3: Create Agents and Tools
+### Step 4: Start the Application and Seed Data
+
+```bash
+./start.sh
+```
+
+Once running, open `http://localhost:8080` → **Sim Control → Setup**. This creates all Elasticsearch indices (including `incidents-quantumstate` with its ELSER `semantic_text` field) and seeds 100 historical incidents used for semantic similarity search.
+
+### Step 5: Seed the Runbook Library
+
+```bash
+python elastic-setup/seed_runbooks.py
+```
+
+Creates the `runbooks-quantumstate` index and seeds 8 runbooks covering all known incident patterns. The Surgeon agent uses this as a semantically searchable procedure library before executing any remediation. This must run before the next step — Kibana validates the index exists when the tool is created.
+
+### Step 6: Create Agents and Tools
 
 ```bash
 python elastic-setup/setup_agents.py
 ```
 
-Creates all 12 ES|QL tools and all 4 agents via the Kibana API in a single run. Idempotent — safe to re-run if you update instructions or tools.
+Creates all 13 tools and 4 agents via the Kibana API in a single run. Idempotent — safe to re-run if you update instructions or tools.
 
 ```
-── Step 1: Upsert 12 tools ──────────────────────────────
+── Step 1: Upsert 13 tools ──────────────────────────────
   ✅ detect_memory_leak                    [created]
   ✅ detect_error_spike                    [created]
   ✅ calculate_time_to_failure             [created]
   ✅ search_error_logs                     [created]
   ✅ correlate_deployments                 [created]
   ✅ find_similar_incidents                [created]
+  ✅ find_relevant_runbook                 [created]
   ✅ log_remediation_action                [created]
   ✅ verify_resolution                     [created]
   ✅ get_recent_anomaly_metrics            [created]
@@ -200,7 +227,7 @@ Creates all 12 ES|QL tools and all 4 agents via the Kibana API in a single run. 
   ✅ guardian-verification-agent           [created]
 ```
 
-If you prefer to set up agents manually, every agent ID, system prompt, tool assignment, and ES|QL query is documented in [`agents-definition.md`](agents-definition.md).
+If you prefer to set up agents manually, every agent ID, system prompt, tool assignment, and query is documented in [`agents-definition.md`](agents-definition.md).
 
 > **Verify in Kibana after setup.** Once the script completes, open Kibana → Agent Builder and confirm that all 4 agents appear with the correct tools assigned to each. Use [`agents-definition.md`](agents-definition.md) as the reference — it lists every agent's name, system prompt, and exact tool assignments. If anything looks wrong (missing tool, wrong prompt, incorrect ES|QL), edit it directly in the Kibana UI rather than re-running the script, as the UI gives you immediate feedback on what changed.
 
@@ -211,17 +238,6 @@ python elastic-setup/setup_agents.py --delete
 ```
 
 <img src="images/Elastic Agent Builder - Agents List.png" width="720" alt="Elastic Agent Builder Agents List" />
-
-### Step 4: Start the Application
-
-```bash
-git clone https://github.com/padmanabhan-r/QuantumState
-cd QuantumState
-uv sync
-./start.sh
-```
-
-Launches the FastAPI backend on `http://localhost:8000` and the React frontend on `http://localhost:8080`.
 
 ---
 
@@ -330,7 +346,7 @@ The entire incident — real memory allocation, real container restart, real rec
 | Layer | Technology |
 |---|---|
 | Agent runtime | Elastic Agent Builder (Kibana) |
-| Agent tools | ES\|QL — 12 custom parameterised queries |
+| Agent tools | 11 ES\|QL tools + 2 ELSER Index Search tools + 1 Workflow tool — 13 total |
 | Workflow automation | Elastic Workflows (YAML, deployed via API) |
 | Orchestration | Python FastAPI — SSE streaming |
 | Data store | Elasticsearch Cloud |
