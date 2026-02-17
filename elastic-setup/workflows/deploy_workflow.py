@@ -41,6 +41,7 @@ def _derive_kibana_url() -> str:
 def deploy_workflow(yaml_path: str) -> dict:
     kibana_url = _derive_kibana_url()
     api_key = os.getenv("ELASTIC_API_KEY", "")
+    existing_id = os.getenv("REMEDIATION_WORKFLOW_ID", "").strip()
 
     if not kibana_url:
         print("ERROR: Could not determine Kibana URL. Set KIBANA_URL or ELASTIC_CLOUD_ID in .env")
@@ -52,7 +53,6 @@ def deploy_workflow(yaml_path: str) -> dict:
     with open(yaml_path, "r") as f:
         yaml_content = f.read()
 
-    url = f"{kibana_url}/api/workflows"
     headers = {
         "kbn-xsrf": "true",
         "x-elastic-internal-origin": "Kibana",
@@ -60,15 +60,24 @@ def deploy_workflow(yaml_path: str) -> dict:
         "Authorization": f"ApiKey {api_key}",
     }
 
-    print(f"Deploying workflow to: {url}")
-    resp = requests.post(url, headers=headers, json={"yaml": yaml_content}, timeout=30)
+    # Update existing workflow if ID is known, otherwise create new
+    if existing_id:
+        url = f"{kibana_url}/api/workflows/{existing_id}"
+        print(f"Updating existing workflow {existing_id}...")
+        resp = requests.put(url, headers=headers, json={"yaml": yaml_content}, timeout=30)
+    else:
+        url = f"{kibana_url}/api/workflows"
+        print(f"Creating new workflow...")
+        resp = requests.post(url, headers=headers, json={"yaml": yaml_content}, timeout=30)
 
     if resp.ok:
         data = resp.json()
-        print(f"✅ Deployed: {data.get('name', 'Unknown')}")
-        print(f"   ID: {data.get('id', 'Unknown')}")
-        print(f"\nAdd this to your .env file:")
-        print(f"   REMEDIATION_WORKFLOW_ID={data.get('id', '')}")
+        workflow_id = data.get("id", existing_id)
+        print(f"✅ {'Updated' if existing_id else 'Deployed'}: {data.get('name', 'Unknown')}")
+        print(f"   ID: {workflow_id}")
+        if not existing_id:
+            print(f"\nAdd this to your .env file:")
+            print(f"   REMEDIATION_WORKFLOW_ID={workflow_id}")
         return data
     else:
         print(f"❌ Deploy failed: {resp.status_code}")

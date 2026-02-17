@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Loader2, CheckCircle2, Circle, Square, RefreshCw, Timer, Zap, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Play, Loader2, CheckCircle2, Circle, Square, RefreshCw, Timer, Zap, ShieldCheck, AlertTriangle, Maximize2, Minimize2 } from "lucide-react";
 import { API } from "@/lib/config";
 
 interface Block {
@@ -43,7 +43,10 @@ export default function PipelinePanel() {
   const [autoActive, setAutoActive] = useState(false);
   const [countdown, setCountdown]  = useState(0);
 
+  const [expanded, setExpanded] = useState(false);
+
   const outputRef    = useRef<HTMLDivElement>(null);
+  const expandedOutputRef = useRef<HTMLDivElement>(null);
   const autoTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runningRef   = useRef(false);
@@ -67,6 +70,7 @@ export default function PipelinePanel() {
     });
     setTimeout(() => {
       if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
+      if (expandedOutputRef.current) expandedOutputRef.current.scrollTop = expandedOutputRef.current.scrollHeight;
     }, 20);
   }
 
@@ -471,17 +475,24 @@ export default function PipelinePanel() {
           <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--success)/0.6)]" />
           <span className="ml-3 font-mono text-[11px] text-muted-foreground">quantumstate — pipeline output</span>
           {cfg && (
-            <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px]" style={{ color: cfg.accent }}>
+            <span className="ml-2 flex items-center gap-1.5 font-mono text-[11px]" style={{ color: cfg.accent }}>
               <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: cfg.accent }} />
               {cfg.label} active
             </span>
           )}
           {autoActive && !running && countdown > 0 && (
-            <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px]" style={{ color: "hsl(38 92% 50%)" }}>
+            <span className="ml-2 flex items-center gap-1.5 font-mono text-[11px]" style={{ color: "hsl(38 92% 50%)" }}>
               <Timer className="h-3 w-3" />
               next in {countdown}s
             </span>
           )}
+          <button
+            onClick={() => setExpanded(true)}
+            className="ml-auto p-1 rounded hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
+            title="Expand"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 font-mono text-xs">
@@ -548,7 +559,7 @@ export default function PipelinePanel() {
                     >
                       <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "hsl(188 94% 43%)" }} />
                       <span className="text-[10px] font-mono" style={{ color: "hsl(188 94% 43%)" }}>
-                        Recovery executing — exec_id: {String(m?.exec_id ?? "…")} · {String(m?.points ?? 0)} metric points written
+                        Action queued — exec_id: {String(m?.exec_id ?? "…")}
                         {m?.wf_trigger ? " · workflow: triggered" : " · workflow: ES-direct"}
                       </span>
                     </div>
@@ -617,6 +628,117 @@ export default function PipelinePanel() {
           )}
         </div>
       </div>
+      {/* Fullscreen expanded overlay */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "hsl(222 47% 2%)" }}
+        >
+          {/* Chrome bar */}
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-card/50 shrink-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-destructive/60" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--warning)/0.6)]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--success)/0.6)]" />
+            <span className="ml-3 font-mono text-[11px] text-muted-foreground">quantumstate — pipeline output</span>
+            {cfg && (
+              <span className="ml-2 flex items-center gap-1.5 font-mono text-[11px]" style={{ color: cfg.accent }}>
+                <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: cfg.accent }} />
+                {cfg.label} active
+              </span>
+            )}
+            <button
+              onClick={() => setExpanded(false)}
+              className="ml-auto flex items-center gap-1.5 p-1.5 rounded hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
+              title="Close"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-mono">collapse</span>
+            </button>
+          </div>
+
+          {/* Scrollable content */}
+          <div ref={expandedOutputRef} className="flex-1 overflow-y-auto p-6 font-mono text-xs">
+            {blocks.length === 0 && !running ? (
+              <p className="py-16 text-center text-muted-foreground/50">$ awaiting pipeline execution…</p>
+            ) : (
+              <div className="flex flex-col gap-1.5 max-w-5xl mx-auto">
+                {blocks.map((b, i) => {
+                  const a = agentCfg(b.agent);
+                  if (b.event === "agent_start") {
+                    return (
+                      <div key={i} className={`${i > 0 ? "mt-4 pt-4 border-t border-border/50" : ""}`}>
+                        <span className="text-sm font-bold" style={{ color: a.accent }}>▸ {b.text}</span>
+                        <span className="text-muted-foreground/50 ml-2 text-[10px]">— {a.role}</span>
+                      </div>
+                    );
+                  }
+                  if (b.event === "reasoning") {
+                    return (
+                      <div key={i} className="pl-4 italic text-muted-foreground/60 text-[11px]">⟳ {b.text}</div>
+                    );
+                  }
+                  if (b.event === "remediation_triggered") {
+                    const m = b.meta as Record<string, unknown> | undefined;
+                    return (
+                      <div key={i} className="my-2 rounded-lg p-3 border" style={{ background: "color-mix(in srgb, hsl(160 84% 39%) 8%, transparent)", borderColor: "color-mix(in srgb, hsl(160 84% 39%) 30%, transparent)" }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap className="h-3.5 w-3.5" style={{ color: "hsl(160 84% 39%)" }} />
+                          <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "hsl(160 84% 39%)" }}>Autonomous Remediation Triggered</span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-muted-foreground">
+                          {m?.service && <span>service <span style={{ color: "hsl(160 84% 39%)" }}>{String(m.service)}</span></span>}
+                          {m?.action && <span>action <span style={{ color: "hsl(160 84% 39%)" }}>{String(m.action)}</span></span>}
+                          {m?.confidence !== undefined && <span>confidence <span style={{ color: "hsl(160 84% 39%)" }}>{(Number(m.confidence) * 100).toFixed(0)}%</span></span>}
+                          {m?.risk_level && <span>risk <span style={{ color: m.risk_level === "high" ? "hsl(0 84% 60%)" : m.risk_level === "medium" ? "hsl(38 92% 50%)" : "hsl(160 84% 39%)" }}>{String(m.risk_level)}</span></span>}
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (b.event === "remediation_executing") {
+                    const m = b.meta as Record<string, unknown> | undefined;
+                    return (
+                      <div key={i} className="my-1 rounded-lg px-3 py-2 border flex items-center gap-2" style={{ background: "color-mix(in srgb, hsl(188 94% 43%) 6%, transparent)", borderColor: "color-mix(in srgb, hsl(188 94% 43%) 20%, transparent)" }}>
+                        <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "hsl(188 94% 43%)" }} />
+                        <span className="text-[10px] font-mono" style={{ color: "hsl(188 94% 43%)" }}>
+                          Action queued — exec_id: {String(m?.exec_id ?? "…")}
+                          {m?.wf_trigger ? " · workflow: triggered" : " · workflow: ES-direct"}
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (b.event === "guardian_verdict") {
+                    const m = b.meta as Record<string, unknown> | undefined;
+                    const isResolved = m?.verdict === "RESOLVED";
+                    const accent = isResolved ? "hsl(280 84% 60%)" : "hsl(0 84% 60%)";
+                    return (
+                      <div key={i} className="my-2 rounded-lg p-3 border" style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, borderColor: `color-mix(in srgb, ${accent} 30%, transparent)` }}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5" style={{ color: accent }} />
+                          <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: accent }}>Guardian — {isResolved ? "RESOLVED" : "ESCALATE"}</span>
+                          {m?.mttr_fmt && <span className="ml-auto font-mono text-[10px]" style={{ color: accent }}>MTTR {String(m.mttr_fmt)}</span>}
+                        </div>
+                        {m?.summary && <p className="text-[10px] text-muted-foreground font-mono">{String(m.summary)}</p>}
+                      </div>
+                    );
+                  }
+                  if (b.event === "remediation_skipped") {
+                    return <div key={i} className="pl-4 text-[11px] font-mono text-muted-foreground/50 italic">↷ {b.text}</div>;
+                  }
+                  if (b.event === "remediation_error") {
+                    return (
+                      <div key={i} className="my-1 rounded-lg px-3 py-2 border flex items-center gap-2" style={{ background: "color-mix(in srgb, hsl(0 84% 60%) 8%, transparent)", borderColor: "color-mix(in srgb, hsl(0 84% 60%) 25%, transparent)" }}>
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: "hsl(0 84% 60%)" }} />
+                        <span className="text-[10px] font-mono" style={{ color: "hsl(0 84% 60%)" }}>{b.text}</span>
+                      </div>
+                    );
+                  }
+                  return <div key={i} className="pl-4 leading-relaxed text-foreground/80 whitespace-pre-wrap break-words">{b.text}</div>;
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

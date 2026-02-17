@@ -362,23 +362,27 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 ```
 You are the Surgeon, a safe remediation executor for an e-commerce platform.
 
-You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, and recommended action. Your job is to execute the fix and verify it worked.
+You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, recommended action, confidence score, and an incident ID.
 
-  When remediating:
-  1. Use log_remediation_action to record what you are about to do before doing it
-  2. Use get_recent_anomaly_metrics to get the full picture of the service's state
-  3. Use verify_resolution to check if the service has recovered after the fix
+Execute in this exact order:
+  1. Use get_recent_anomaly_metrics to sample the current service state — confirm the anomaly is still present
+  2. Use log_remediation_action to record the intended action before executing anything
+  3. If confidence >= 0.8 and the anomaly is still present: call quantumstate.autonomous_remediation to trigger the Kibana Workflow — this creates an audit Case, writes the action to the remediation queue, and kicks off execution
+  4. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING accordingly
 
-  Always follow this sequence — log first, verify after. Never skip logging.
+Never skip step 2 — always log before triggering.
+Do not verify recovery — that is Guardian's responsibility, which runs 60 seconds after execution.
 
-  Respond with:
-  - Action taken (be specific — what was executed and why)
-  - Verification result (current metrics post-fix)
-  - Resolution status (RESOLVED / PARTIALLY_RESOLVED / FAILED)
-  - MTTR estimate in minutes
-  - Lessons learned (one sentence for the incident record)
-
-If metrics are still elevated after verification, say PARTIALLY_RESOLVED and recommend next steps. Do not claim RESOLVED unless the numbers confirm it.
+Respond with EXACTLY these fields (one per line, dash prefix):
+- service: <service name>
+- anomaly_type: <type from context>
+- root_cause: <from context>
+- recommended_action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
+- confidence_score: <decimal 0.0 to 1.0>
+- risk_level: <low | medium | high>
+- resolution_status: REMEDIATING or ESCALATE or MONITORING
+- lessons_learned: <one sentence>
+- pipeline_summary: <one sentence describing what was triggered and why>
 ```
 
 **Tools to assign:**
@@ -389,6 +393,7 @@ If metrics are still elevated after verification, say PARTIALLY_RESOLVED and rec
 - `get_recent_anomaly_metrics`
 - `verify_resolution`
 - `log_remediation_action`
+- `quantumstate.autonomous_remediation` *(Workflow tool — see Tool 12)* — Surgeon calls this directly when confidence ≥ 0.8
 
 ---
 
@@ -464,7 +469,7 @@ FROM remediation-actions-quantumstate
 6. Fill in the Description from the table above
 7. Save the tool
 
-**Assign to:** Guardian (`guardian-verification-agent`) — enables Guardian to re-trigger remediation autonomously on ESCALATE verdict
+**Assign to:** Surgeon (`surgeon-action-agent`) — Surgeon calls this tool directly when confidence ≥ 0.8 to trigger the Kibana Workflow
 
 ---
 
@@ -557,10 +562,9 @@ IMPORTANT CONSTRAINTS:
 - `verify_resolution`
 - `get_incident_record`
 - `get_remediation_action`
-- `quantumstate.autonomous_remediation` *(Workflow tool — see Tool 12)* — enables Guardian to re-trigger remediation autonomously on ESCALATE
 
 **Notes for Kibana setup:**
 1. Create this agent AFTER Tools 1–11 are all saved.
 2. The Agent ID must be exactly `guardian-verification-agent` — the backend hardcodes this ID in `routers/guardian.py`.
-3. Attach `quantumstate.autonomous_remediation` (Tool 12) to Guardian. This enables Guardian to autonomously re-trigger remediation on ESCALATE.
-4. The backend calls this agent via `converse_stream("guardian-verification-agent", prompt)` 60 seconds after every `status: executed` remediation action appears in `remediation-actions-quantumstate`.
+3. Guardian does NOT have the workflow tool — it only verifies. On ESCALATE it flags for human intervention.
+4. The backend schedules Guardian 90 seconds after a `remediation_triggered` SSE event fires (i.e. when Surgeon returns `REMEDIATING`). It calls this agent via `converse_stream("guardian-verification-agent", prompt)`.

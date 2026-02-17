@@ -37,6 +37,10 @@ tags:
 triggers:
   - type: manual
 
+settings:
+  on-failure:
+    continue: true
+
 # ---------------------------------------------------------------------------
 # CONSTANTS
 # Update slack_webhook if you have a Slack workspace configured.
@@ -137,13 +141,12 @@ steps:
 
             ---
 
-            *This case was created automatically by QuantumState v2.*
-            *The remediation runner will execute the action and update this record.*
-          owner: securitySolution
+            *This case was created automatically by QuantumState.*
+            *The MCP Runner will execute the action and update this record.*
+          owner: observability
           tags:
             - quantumstate
             - auto-remediation
-            - "{{ inputs.anomaly_type }}"
           severity: medium
           settings:
             syncAlerts: false
@@ -152,8 +155,6 @@ steps:
             id: none
             name: none
             type: .none
-          fetcher:
-            skip_ssl_verification: true
         on-failure:
           continue: true
 

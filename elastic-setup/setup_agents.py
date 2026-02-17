@@ -103,6 +103,7 @@ TOOLS = [
 | SORT current_memory DESC
 | KEEP service, region, current_memory, baseline, deviation_pct
 | LIMIT 10""",
+            "params": {},
         },
     },
 
@@ -125,6 +126,7 @@ TOOLS = [
 | SORT current_error_rate DESC
 | KEEP service, region, current_error_rate, deviation
 | LIMIT 10""",
+            "params": {},
         },
     },
 
@@ -379,7 +381,7 @@ TOOLS = [
     },
 ]
 
-# ── Tool 12 — Workflow tool (Guardian only) ───────────────────────────────────
+# ── Tool 12 — Workflow tool (Surgeon) ─────────────────────────────────────────
 
 WORKFLOW_TOOL = {
     "id": "quantumstate.autonomous_remediation",
@@ -388,9 +390,9 @@ WORKFLOW_TOOL = {
         "Use this tool to trigger the QuantumState Autonomous Remediation workflow for a "
         "specific service. Call this when confidence is high and a fix needs to be executed "
         "— the workflow validates confidence, creates a Kibana Case, writes the action to "
-        "the audit index, and executes the remediation."
+        "the audit index, and queues the action for the MCP Runner to execute."
     ),
-    "tags": ["guardian", "workflow", "remediation"],
+    "tags": ["surgeon", "workflow", "remediation"],
     "configuration": {
         "workflow_id": WORKFLOW_ID,
     },
@@ -437,22 +439,27 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 
 SURGEON_INSTRUCTIONS = """You are the Surgeon, a safe remediation executor for an e-commerce platform.
 
-You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, and recommended action. Your job is to execute the fix and verify it worked.
+You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, recommended action, confidence score, and an incident ID.
 
-  When remediating:
-  1. Use log_remediation_action to record what you are about to do before doing it
-  2. Use verify_resolution to check if the service has recovered after the fix
+Execute in this exact order:
+  1. Use get_recent_anomaly_metrics to sample the current service state — confirm the anomaly is still present
+  2. Use log_remediation_action to record the intended action before executing anything
+  3. If confidence >= 0.8 and the anomaly is still present: call quantumstate.autonomous_remediation to trigger the Kibana Workflow — this creates an audit Case, writes the action to the remediation queue, and kicks off execution
+  4. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING accordingly
 
-  Always follow this sequence — log first, verify after. Never skip logging.
+Never skip step 2 — always log before triggering.
+Do not verify recovery — that is Guardian's responsibility, which runs 60 seconds after execution.
 
-  Respond with:
-  - Action taken (be specific — what was executed and why)
-  - Verification result (current metrics post-fix)
-  - Resolution status (RESOLVED / PARTIALLY_RESOLVED / FAILED)
-  - MTTR estimate in minutes
-  - Lessons learned (one sentence for the incident record)
-
-If metrics are still elevated after verification, say PARTIALLY_RESOLVED and recommend next steps. Do not claim RESOLVED unless the numbers confirm it.""".strip()
+Respond with EXACTLY these fields (one per line, dash prefix):
+- service: <service name>
+- anomaly_type: <type from context>
+- root_cause: <from context>
+- recommended_action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
+- confidence_score: <decimal 0.0 to 1.0>
+- risk_level: <low | medium | high>
+- resolution_status: REMEDIATING or ESCALATE or MONITORING
+- lessons_learned: <one sentence>
+- pipeline_summary: <one sentence describing what was triggered and why>""".strip()
 
 GUARDIAN_INSTRUCTIONS = """You are the Guardian — the fourth and final agent in the QuantumState autonomous SRE pipeline. Your sole responsibility is post-remediation verification: you close the incident loop by confirming whether the applied fix has returned the service to a healthy state.
 
@@ -483,7 +490,7 @@ Use verify_resolution(service) to check all three primary recovery thresholds:
 
 STEP 5 — Determine verdict
 - RESOLVED: ALL three thresholds pass. Service is back to healthy operating state.
-- ESCALATE: ANY threshold is still breached. Service has not recovered. Human intervention required.
+- ESCALATE: ANY threshold is still breached. Service has not recovered. Flag for human intervention — do not re-trigger remediation.
 
 STEP 6 — Calculate MTTR
 MTTR = current UTC time minus the incident @timestamp retrieved in Step 2. Express as minutes and seconds (e.g. ~4m 12s).
@@ -568,6 +575,7 @@ def _build_agents() -> list[dict]:
                     "get_recent_anomaly_metrics",
                     "verify_resolution",
                     "log_remediation_action",
+                    "quantumstate.autonomous_remediation",
                 ]}],
             },
         },
@@ -590,7 +598,6 @@ def _build_agents() -> list[dict]:
                     "verify_resolution",
                     "get_incident_record",
                     "get_remediation_action",
-                    "quantumstate.autonomous_remediation",
                 ]}],
             },
         },
@@ -637,7 +644,7 @@ def _upsert_tool(tool: dict) -> str:
     tid = tool["id"]
     status, _ = _get(f"api/agent_builder/tools/{tid}")
     if status == 200:
-        body = {k: v for k, v in tool.items() if k != "id"}
+        body = {k: v for k, v in tool.items() if k not in ("id", "type")}
         s, resp = _put(f"api/agent_builder/tools/{tid}", body)
         if s in (200, 201):
             return "updated"
