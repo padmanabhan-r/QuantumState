@@ -52,38 +52,37 @@ const Console = () => {
       </header>
 
       {/* ── Hero banner ── */}
-      <div className="hero-grid-bg border-b border-border px-6 py-4 shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="hero-grid-bg border-b border-border px-4 sm:px-6 py-2 sm:py-4 shrink-0">
+        <div className="flex items-center gap-4">
           {/* Left — title + agent pills */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5 sm:gap-2 min-w-0">
             <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary animate-pulse" />
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-                Autonomous SRE · Active
+              <Activity className="h-4 w-4 text-primary animate-pulse shrink-0" />
+              <h1 className="text-sm sm:text-xl font-bold text-foreground truncate">
+                Incident Command Centre
+              </h1>
+              <span className="hidden md:block text-xs font-mono text-muted-foreground uppercase tracking-widest whitespace-nowrap">
+                · Autonomous SRE · Active
               </span>
             </div>
-            <h1 className="text-xl font-bold text-foreground">
-              Incident Command Centre
-            </h1>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {AGENTS.map((a) => (
                 <span
                   key={a.name}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+                  className="flex items-center gap-1.5 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium whitespace-nowrap"
                   style={{
                     background: `color-mix(in srgb, ${a.color} 12%, transparent)`,
                     border: `1px solid color-mix(in srgb, ${a.color} 30%, transparent)`,
                     color: a.color,
                   }}
                 >
-                  <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: a.color }} />
+                  <span className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ background: a.color }} />
                   {a.name}
-                  <span className="opacity-50">· {a.role}</span>
+                  <span className="hidden sm:inline opacity-50">· {a.role}</span>
                 </span>
               ))}
             </div>
           </div>
-
         </div>
       </div>
 
@@ -96,7 +95,7 @@ const Console = () => {
       <main className="flex flex-1 overflow-hidden">
 
         {/* Left panel — Pipeline / Chat tabs */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
           <Tabs defaultValue="pipeline" className="flex flex-col h-full overflow-hidden">
             <div className="border-b border-border bg-card/40 px-4 py-2 shrink-0">
               <TabsList className="h-9 bg-background/60 border border-border p-1 gap-1">
@@ -127,7 +126,7 @@ const Console = () => {
         </div>
 
         {/* Right panel — Incidents + Actions tabs */}
-        <div className="w-[460px] shrink-0 flex flex-col overflow-hidden">
+        <div className="w-[240px] md:w-[320px] lg:w-[400px] xl:w-[460px] shrink-0 flex flex-col overflow-hidden">
           <Tabs defaultValue="incidents" className="flex flex-col h-full overflow-hidden">
             <div className="border-b border-border bg-card/40 px-4 py-2 shrink-0">
               <TabsList className="h-9 bg-background/60 border border-border p-1 gap-1">
@@ -158,7 +157,7 @@ const Console = () => {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-border px-6 py-3 flex justify-between items-center shrink-0">
+      <footer className="hidden sm:flex border-t border-border px-4 sm:px-6 py-2 sm:py-3 justify-between items-center shrink-0">
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Zap className="h-3 w-3 text-secondary fill-secondary" />
           QuantumState SRE Console

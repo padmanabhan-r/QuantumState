@@ -284,14 +284,14 @@ export default function PipelinePanel() {
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {/* Agent steps */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {AGENTS.map((a, i) => {
               const isDone   = doneAgents.includes(a.id);
               const isActive = currentAgent === a.id;
               return (
-                <div key={a.id} className="flex items-center gap-2">
+                <div key={a.id} className="flex items-center gap-1.5">
                   <div
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 transition-all"
+                    className="flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 transition-all"
                     style={{
                       background: isActive
                         ? `color-mix(in srgb, ${a.accent} 12%, transparent)`
@@ -303,27 +303,28 @@ export default function PipelinePanel() {
                     }}
                   >
                     {isDone ? (
-                      <CheckCircle2 className="h-3.5 w-3.5" style={{ color: a.accent }} />
+                      <CheckCircle2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" style={{ color: a.accent }} />
                     ) : isActive ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: a.accent }} />
+                      <Loader2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin shrink-0" style={{ color: a.accent }} />
                     ) : (
-                      <Circle className="h-3.5 w-3.5 text-muted-foreground/40" />
+                      <Circle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground/40 shrink-0" />
                     )}
                     <div className="flex flex-col">
-                      <span className="text-xs font-semibold leading-none" style={{ color: isActive || isDone ? a.accent : undefined }}>
+                      <span className="text-[11px] sm:text-xs font-semibold leading-none" style={{ color: isActive || isDone ? a.accent : undefined }}>
                         {a.label}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">{a.role}</span>
+                      <span className="hidden sm:block text-[10px] text-muted-foreground">{a.role}</span>
                     </div>
                   </div>
-                  {i < AGENTS.length - 1 && <div className="h-px w-4 bg-border hidden sm:block" />}
+                  {i < AGENTS.length - 1 && <div className="h-px w-3 bg-border hidden md:block" />}
                 </div>
               );
             })}
           </div>
 
           {/* Action area */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            {/* Interval selector — shown above the button in auto mode */}
             {mode === "auto" && (
               <div className="flex items-center gap-1.5">
                 <Timer className="h-3.5 w-3.5 text-muted-foreground" />
