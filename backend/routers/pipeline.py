@@ -244,7 +244,10 @@ def _pipeline_generator():
             cassandra_output = full_response
     yield _event("agent_complete", {"agent": "cassandra", "text": full_response})
 
-    # Stop pipeline if Cassandra found no anomaly
+    # Stop pipeline if Cassandra found no anomaly or returned nothing
+    if not cassandra_output.strip():
+        yield _event("pipeline_complete", {"text": "Cassandra returned no output — no data in the detection window or agent error. Pipeline stopped."})
+        return
     if "anomaly_detected: false" in cassandra_output.lower():
         yield _event("pipeline_complete", {"text": "No anomaly detected — system is healthy. Pipeline stopped."})
         return
