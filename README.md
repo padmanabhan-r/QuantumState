@@ -202,6 +202,8 @@ Creates all 12 ES|QL tools and all 4 agents via the Kibana API in a single run. 
 
 If you prefer to set up agents manually, every agent ID, system prompt, tool assignment, and ES|QL query is documented in [`agents-definition.md`](agents-definition.md).
 
+> **Verify in Kibana after setup.** Once the script completes, open Kibana → Agent Builder and confirm that all 4 agents appear with the correct tools assigned to each. Use [`agents-definition.md`](agents-definition.md) as the reference — it lists every agent's name, system prompt, and exact tool assignments. If anything looks wrong (missing tool, wrong prompt, incorrect ES|QL), edit it directly in the Kibana UI rather than re-running the script, as the UI gives you immediate feedback on what changed.
+
 To tear everything down:
 
 ```bash
