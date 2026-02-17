@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical } from "lucide-react";
+import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ElasticIcon from "@/components/ElasticIcon";
 import { API as API_BASE } from "@/lib/config";
@@ -9,6 +9,8 @@ const API = `${API_BASE}/sim`;
 
 type IndexInfo = { exists: boolean; count: number };
 type StatusData = { streaming: boolean; indices: Record<string, IndexInfo> };
+type McpAction  = { service: string; action: string; status: string; exec_id?: string; executed_at?: string };
+type McpStatus  = { pending: number; recent: McpAction[] };
 
 async function apiFetch(path: string, method = "GET") {
   const res = await fetch(path, { method });
@@ -23,9 +25,13 @@ const SYNTH_SCENARIOS = [
 const SHORT = (name: string) => name.replace("-quantumstate", "");
 
 export default function SimControl() {
-  const [status, setStatus] = useState<StatusData | null>(null);
-  const [busy, setBusy]     = useState<string | null>(null);
-  const [toast, setToast]   = useState<{ msg: string; ok: boolean } | null>(null);
+  const [status, setStatus]       = useState<StatusData | null>(null);
+  const [busy, setBusy]           = useState<string | null>(null);
+  const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
+  const [mcpStatus, setMcpStatus] = useState<McpStatus>({ pending: 0, recent: [] });
+  const [mcpAuto, setMcpAuto]     = useState(false);
+  const [mcpLast, setMcpLast]     = useState<McpAction | null>(null);
+  const mcpAutoRef                = useRef(false);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -36,9 +42,49 @@ export default function SimControl() {
     try { setStatus(await apiFetch(`${API}/status`)); } catch { /* ignore */ }
   }
 
+  async function refreshMcpStatus() {
+    try { setMcpStatus(await apiFetch(`${API}/mcp-runner/status`)); } catch { /* ignore */ }
+  }
+
+  async function runMcpOnce() {
+    setBusy("mcp-run");
+    try {
+      const res = await apiFetch(`${API}/mcp-runner/execute`, "POST");
+      if (res.executed) {
+        setMcpLast(res.executed);
+        showToast(`↺ ${res.executed.service} — ${res.executed.action}`);
+      } else {
+        showToast("No pending actions", true);
+      }
+      await refreshMcpStatus();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "MCP error", false);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Auto-run loop
+  useEffect(() => {
+    mcpAutoRef.current = mcpAuto;
+  }, [mcpAuto]);
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      if (!mcpAutoRef.current) return;
+      try {
+        const res = await apiFetch(`${API}/mcp-runner/execute`, "POST");
+        if (res.executed) setMcpLast(res.executed);
+        await refreshMcpStatus();
+      } catch { /* ignore */ }
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     refreshStatus();
-    const id = setInterval(refreshStatus, 5000);
+    refreshMcpStatus();
+    const id = setInterval(() => { refreshStatus(); refreshMcpStatus(); }, 5000);
     return () => clearInterval(id);
   }, []);
 
@@ -179,6 +225,102 @@ export default function SimControl() {
               </div>
             ))}
           </div>
+
+          {/* MCP Runner */}
+          <div className="rounded-lg border p-3 flex flex-col gap-2"
+            style={{
+              background: "hsl(222 47% 3%)",
+              borderColor: mcpAuto ? "hsl(160 84% 39% / 0.35)" : "hsl(var(--border))",
+              transition: "border-color 0.3s",
+            }}>
+
+            {/* Main row — mirrors Live Streamer layout */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">MCP Runner</div>
+                <p className="text-xs text-muted-foreground">Synthetic <code className="text-[10px] bg-muted/40 px-1 rounded">docker restart</code> — picks up pending actions and writes recovery metrics.</p>
+              </div>
+
+              {/* Pending badge */}
+              <span
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border shrink-0 tabular-nums"
+                style={mcpStatus.pending > 0 ? {
+                  color: "hsl(38 92% 50%)", borderColor: "hsl(38 92% 50% / 0.3)", background: "hsl(38 92% 50% / 0.08)",
+                } : {
+                  color: "hsl(var(--muted-foreground))", borderColor: "hsl(var(--border))", background: "hsl(var(--border) / 0.08)",
+                }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: mcpStatus.pending > 0 ? "hsl(38 92% 50%)" : "hsl(var(--muted-foreground))" }} />
+                {mcpStatus.pending} pending
+              </span>
+
+              {/* Run Once */}
+              <Button
+                size="sm"
+                disabled={busy === "mcp-run" || mcpAuto}
+                onClick={runMcpOnce}
+                className="bg-gradient-blue text-white shrink-0"
+              >
+                {busy === "mcp-run" ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
+                Run Once
+              </Button>
+
+              {/* Auto toggle switch */}
+              <button
+                onClick={() => setMcpAuto(v => !v)}
+                className="flex items-center gap-2 shrink-0 focus:outline-none"
+                aria-label="Toggle auto mode"
+              >
+                <span
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200"
+                  style={{ background: mcpAuto ? "hsl(160 84% 39%)" : "hsl(var(--muted-foreground) / 0.25)" }}
+                >
+                  <span
+                    className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200"
+                    style={{ transform: mcpAuto ? "translateX(18px)" : "translateX(2px)" }}
+                  />
+                </span>
+                <span className="text-xs font-medium transition-colors duration-200"
+                  style={{ color: mcpAuto ? "hsl(160 84% 39%)" : "hsl(var(--muted-foreground))" }}>
+                  Auto
+                </span>
+              </button>
+            </div>
+
+            {/* Activity feed */}
+            <div className="flex flex-col gap-0.5 rounded-md overflow-hidden border border-border/50">
+              {mcpStatus.recent.length === 0 ? (
+                <div className="px-2.5 py-2 text-[11px] font-mono text-muted-foreground/40 italic">
+                  no activity in the last 30 min
+                </div>
+              ) : mcpStatus.recent.map((a, i) => {
+                const isPending   = a.status === "pending";
+                const isExecuting = a.status === "executing";
+                const isExecuted  = a.status === "executed";
+                return (
+                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] font-mono"
+                    style={{
+                      background: i === 0 ? "hsl(222 47% 5%)" : "transparent",
+                      borderBottom: i < mcpStatus.recent.length - 1 ? "1px solid hsl(var(--border) / 0.4)" : "none",
+                    }}>
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0"
+                      style={{
+                        background: isPending ? "hsl(38 92% 50%)" : isExecuting ? "hsl(221 83% 53%)" : isExecuted ? "hsl(160 84% 39%)" : "hsl(var(--muted-foreground))",
+                        animation: isPending || isExecuting ? "pulse 1.2s infinite" : "none",
+                      }} />
+                    <span className="text-muted-foreground/60 shrink-0">{a.service}</span>
+                    <span className="text-muted-foreground/30">→</span>
+                    <span className="text-muted-foreground/80 truncate">{a.action}</span>
+                    <span className="ml-auto shrink-0 text-[10px]"
+                      style={{ color: isPending ? "hsl(38 92% 50%)" : isExecuting ? "hsl(221 83% 53%)" : isExecuted ? "hsl(160 84% 39%)" : "hsl(var(--muted-foreground))" }}>
+                      {isPending ? "● pending" : isExecuting ? "↻ executing" : "✓ executed"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
         </section>
 
         {/* ── Cleanup ─────────────────────────────────────────────── */}

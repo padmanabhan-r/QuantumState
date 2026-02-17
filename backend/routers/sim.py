@@ -118,20 +118,6 @@ QUANTUMSTATE_INDICES = {
             "recovery_initiated": {"type": "boolean"},
         }}
     },
-    "approval-requests-quantumstate": {
-        "mappings": {"properties": {
-            "@timestamp":       {"type": "date"},
-            "incident_id":      {"type": "keyword"},
-            "service":          {"type": "keyword"},
-            "proposed_action":  {"type": "keyword"},
-            "reason":           {"type": "text"},
-            "evidence_summary": {"type": "text"},
-            "confidence_score": {"type": "float"},
-            "status":           {"type": "keyword"},
-            "resolved_by":      {"type": "keyword"},
-            "resolved_at":      {"type": "date"},
-        }}
-    },
 }
 
 PAST_INCIDENTS = [
@@ -336,6 +322,112 @@ def inject_scenario(scenario: str):
         return {"ok": False, "error": str(exc)}
 
 
+@router.get("/mcp-runner/status")
+def mcp_runner_status():
+    """Return pending action count and the 5 most recent actions."""
+    es = get_es()
+    try:
+        pending = es.count(
+            index="remediation-actions-quantumstate",
+            body={"query": {"term": {"status": "pending"}}},
+        )["count"]
+    except Exception:
+        pending = 0
+    try:
+        result = es.search(
+            index="remediation-actions-quantumstate",
+            body={
+                "size": 5,
+                "sort": [{"@timestamp": "desc"}],
+                "query": {"range": {"@timestamp": {"gte": "now-30m"}}},
+                "_source": ["service", "action", "status", "exec_id", "executed_at", "@timestamp"],
+            },
+        )
+        recent = [h["_source"] for h in result["hits"]["hits"]]
+    except Exception:
+        recent = []
+    return {"pending": pending, "recent": recent}
+
+
+@router.post("/mcp-runner/execute")
+def mcp_runner_execute():
+    """
+    Synthetic MCP Runner — picks up one pending action and executes it.
+    Mirrors what infra/mcp-runner/runner.py does with real Docker:
+      1. Find oldest pending action
+      2. Mark executing
+      3. Write recovery metrics (the 'docker restart' equivalent)
+      4. Mark executed + write result record
+    """
+    import uuid as _uuid
+    es = get_es()
+
+    # Find oldest pending action
+    try:
+        resp = es.search(
+            index="remediation-actions-quantumstate",
+            body={
+                "size": 1,
+                "query": {"term": {"status": "pending"}},
+                "sort": [{"@timestamp": "asc"}],
+            },
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "executed": None}
+
+    hits = resp["hits"]["hits"]
+    if not hits:
+        return {"ok": True, "executed": None, "message": "No pending actions"}
+
+    hit      = hits[0]
+    doc_id   = hit["_id"]
+    doc      = hit["_source"]
+    service  = doc.get("service", "")
+    action   = doc.get("action", "restart_service")
+    exec_id  = doc.get("exec_id") or str(_uuid.uuid4())[:8]
+    inc_id   = doc.get("incident_id", "")
+    now_iso  = datetime.now(timezone.utc).isoformat()
+
+    # Mark as executing (optimistic lock equivalent)
+    try:
+        es.update(
+            index="remediation-actions-quantumstate",
+            id=doc_id,
+            body={"doc": {"status": "executing", "runner_started_at": now_iso}},
+        )
+    except Exception:
+        pass
+
+    # Import recovery helpers from sibling router
+    from routers.remediate import _write_recovery_metrics, _write_remediation_result
+
+    points = _write_recovery_metrics(service, action)
+    done_iso = datetime.now(timezone.utc).isoformat()
+
+    # Mark executed
+    try:
+        es.update(
+            index="remediation-actions-quantumstate",
+            id=doc_id,
+            body={"doc": {
+                "status":       "executed",
+                "executed_at":  done_iso,
+                "runner_output": "synthetic_restart",
+            }},
+        )
+    except Exception:
+        pass
+
+    _write_remediation_result(inc_id, service, action, exec_id, "success")
+
+    return {
+        "ok": True,
+        "executed": {"service": service, "action": action, "exec_id": exec_id},
+        "recovery_points_written": points,
+        "message": f"Synthetic restart executed for {service} — {points} recovery metrics written",
+    }
+
+
 @router.post("/cleanup/incidents")
 def clear_incidents():
     """Delete all incident, remediation, and guardian result docs — keeps metrics/logs intact."""
@@ -345,7 +437,6 @@ def clear_incidents():
         "incidents-quantumstate",
         "remediation-actions-quantumstate",
         "remediation-results-quantumstate",
-        "approval-requests-quantumstate",
         "agent-decisions-quantumstate",
     ]:
         try:
