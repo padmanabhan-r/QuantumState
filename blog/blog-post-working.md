@@ -4,7 +4,9 @@
 **Published:** February 18, 2026
 [LinkedIn](https://www.linkedin.com/in/padmanabhan-rajendrakumar) · [GitHub](https://github.com/padmanabhan-r)
 
-**Abstract:** Production systems need more than just noisy alerts. We need solutions that actually fix things. This post walks through building a fully autonomous incident response system using Elastic's Agent Builder and ELSER vector search. By combining ES|QL reasoning, semantic search, and workflow execution, this setup drops Mean Time to Recovery from an hour down to under four minutes in our simulated environment.
+> This blog post was submitted to the Elastic Blog-a-thon Contest and is eligible to win a prize.
+
+**Abstract:** Production systems need more than noisy alerts. This post walks through building a fully autonomous incident response system using Elastic's Agent Builder and ELSER vector search. By combining ES|QL reasoning, semantic search, and workflow execution, this setup drops Mean Time to Recovery from an hour down to under four minutes in our simulated environment.
 
 ---
 
@@ -49,10 +51,10 @@ For example, if a current alert says "JVM heap climbing under load," the system 
 
 QuantumState takes an incident from detection all the way to verified recovery. The loop looks like this:
 
-1. **Detect** — Catch metric anomalies before things break
-2. **Investigate** — Correlate metrics, logs, and past incidents to find the root cause
-3. **Execute** — Check the runbooks and trigger a fix when confidence is high
-4. **Verify** — Make sure system health is back to normal
+1. **Detect:** Catch metric anomalies before things break
+2. **Investigate:** Correlate metrics, logs, and past incidents to find the root cause
+3. **Execute:** Check the runbooks and trigger a fix when confidence is high
+4. **Verify:** Make sure system health is back to normal
 
 ---
 
@@ -113,7 +115,14 @@ The result is a unified control plane where observability, decision making, and 
 
 QuantumState includes a React based SRE Incident Control Panel. It interacts directly with Agent Builder via the Kibana API to visualize agent reasoning and monitor outcomes in real time. We also have a separate local infrastructure stack that runs microservices, injects controlled faults, and generates live observability data for the agents to analyze.
 
-Here is how to provision Elastic Cloud, deploy ELSER, configure your agents, start the infrastructure stack, and watch the autonomous loop in action.
+The steps below walk through the full setup, from Elastic Cloud to a live remediation run.
+
+The full source code is on GitHub: [github.com/padmanabhan-r/QuantumState](https://github.com/padmanabhan-r/QuantumState)
+
+```bash
+git clone https://github.com/padmanabhan-r/QuantumState.git
+cd QuantumState
+```
 
 ---
 
@@ -184,6 +193,8 @@ REMEDIATION_WORKFLOW_ID=workflow-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 Open `http://localhost:8080` and navigate to **Simulation & Setup → Run Setup**. This creates all seven Elasticsearch indices and seeds 100 historical incidents and 8 runbooks in a single pass. Both indices must exist before moving to the next step.
+
+> In a real production environment, your incident history and runbook library would be orders of magnitude larger, giving ELSER significantly more signal to work with during semantic retrieval.
 
 <img src="../images/Sim Control.png" width="700" alt="Simulation and Setup Control Panel" />
 
@@ -269,11 +280,18 @@ For more details, check out the [website](https://www.quantumstate.online/) or e
 
 ---
 
-## Wrapping Up
+## Conclusion and Takeaways
 
-QuantumState is proof that you can build a fully autonomous incident response system entirely within Elastic. You do not need external LLM API keys, a separate vector database, or heavy orchestration middleware.
+QuantumState demonstrates that a fully autonomous incident response system (detect, investigate, remediate, verify) can be built entirely within Elastic. No external LLM API keys. No separate vector database. No orchestration middleware.
 
-The heavy lifting is handled by three native capabilities: ES|QL for precise anomaly detection on live metrics, ELSER for semantic reasoning that matches actual meaning instead of brittle keywords, and Agent Builder to coordinate the pipeline. Elasticsearch serves as the data store, knowledge base, action queue, and audit trail all at once.
+Three capabilities make this possible: ES|QL for precise anomaly detection directly over live metrics; ELSER for semantic reasoning that matches meaning rather than keywords; and Agent Builder to coordinate the entire pipeline as native Kibana agents.
+
+**Key takeaways:**
+
+- ELSER hybrid search eliminates brittle keyword matching for both incident recall and runbook retrieval: "heap exhaustion" matches "GC pressure" without any custom synonym configuration
+- Agent Builder removes the need for external frameworks; the entire pipeline lives inside Elastic
+- Elasticsearch serves simultaneously as data store, knowledge base, action queue, and audit trail
+- The full architecture is reproducible against any Elastic Cloud deployment
 
 ---
 

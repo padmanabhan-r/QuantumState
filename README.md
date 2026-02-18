@@ -58,25 +58,25 @@ QuantumState uses four native Elastic Agent Builder agents — each responsible 
 
 <img src="images/Web - The 4 Agents.png" width="720" alt="The 4 Agents" />
 
-### 🔭 Cassandra — Detect
+### 🔭 Cassandra: Detect
 
 Continuously monitors system metrics using rolling time windows. Instead of relying on static thresholds, it compares current behavior against a dynamic baseline to detect gradual degradation — memory leaks, error spikes, latency drift — before they escalate into critical failures. Returns anomaly type, confidence score, and time-to-critical estimate.
 
 **Tools:** `detect_memory_leak` · `detect_error_spike` · `calculate_time_to_failure`
 
-### 🔍 Archaeologist — Investigate
+### 🔍 Archaeologist: Investigate
 
 Takes the anomaly context and correlates it with surrounding signals — logs, recent deployment events, and historical incidents. Rather than identifying symptoms in isolation, it constructs an evidence chain linking cause to effect. The `find_similar_incidents` tool uses ELSER-powered hybrid search to surface semantically similar past incidents, even when described in completely different language.
 
 **Tools:** `search_error_logs` · `correlate_deployments` · `find_similar_incidents`
 
-### ⚕️ Surgeon — Resolve
+### ⚕️ Surgeon: Resolve
 
 Evaluates possible remediation actions based on the detected anomaly and confidence score. Samples current service state, retrieves the most relevant runbook from a semantically searchable procedure library, logs the intended action, then — if confidence ≥ 0.8 — calls `quantumstate.autonomous_remediation` directly to trigger the Kibana Workflow. The Workflow creates an audit Case and queues the action for the MCP Runner. Recovery verification is left to Guardian.
 
 **Tools:** `get_recent_anomaly_metrics` · `find_relevant_runbook` · `log_remediation_action` · `verify_resolution` · `quantumstate.autonomous_remediation`
 
-### 🛡️ Guardian — Verify
+### 🛡️ Guardian: Verify
 
 Closes the loop. After remediation, it validates whether system health has returned to baseline — checking memory, error rate, and latency thresholds. Returns `RESOLVED` or `ESCALATE` with a calculated MTTR. Only when recovery is confirmed does the incident lifecycle complete.
 
@@ -88,7 +88,7 @@ Closes the loop. After remediation, it validates whether system health has retur
 
 The MCP Runner is the component that physically executes remediation. It acts as a lightweight sidecar that continuously polls for approved remediation actions written by the agents to Elasticsearch.
 
-When an action is marked ready for execution, the MCP Runner performs the required infrastructure operation — restarting a container, triggering a rollback, scaling a cache dependency.
+When an action is marked ready for execution, the MCP Runner performs the required infrastructure operation: restarting a container, triggering a rollback, or scaling a cache dependency.
 
 - No webhooks
 - No external orchestration engines
@@ -122,6 +122,11 @@ At a high level, the flow is:
 - Python 3.12+ · Node.js 18+
 - Docker (for the real infrastructure demo)
 - Elastic Cloud deployment
+
+```bash
+git clone https://github.com/padmanabhan-r/QuantumState.git
+cd QuantumState
+```
 
 ### Step 1: Elastic Cloud
 
@@ -222,22 +227,6 @@ python elastic-setup/setup_agents.py --delete
 
 ---
 
-## Running the Pipeline
-
-### SRE Console
-
-The Console is the main interface for running and observing the pipeline. Toggle **Auto Pipeline** on to run the full agent chain automatically on a schedule (90s locally, 3–5 min in production), or click **Run Pipeline** to trigger it immediately. Each agent's reasoning streams live to the terminal as it runs.
-
-<!-- IMAGE: SRE Console screenshot -->
-
-### Sim Control
-
-Sim Control lets you manage the synthetic simulation environment without the Docker stack — set up indices, stream synthetic metrics, inject anomalies, and run the MCP Runner synthetically. Useful for quick testing without containers.
-
-<!-- IMAGE: Sim Control screenshot -->
-
----
-
 ## Injecting Real Faults (Recommended)
 
 The `infra/` directory contains a complete local microservice environment wired together via Docker Compose. Running this stack means the data Cassandra sees is real — actual memory allocation climbing inside a container, actual error logs being written, and an actual `docker restart` bringing memory back down.
@@ -254,8 +243,8 @@ docker compose up --build
 | `auth-service` | 8003 | FastAPI service — error spike target |
 | `inventory-service` | 8004 | FastAPI service |
 | `auth-redis` | 6379 | Redis dependency |
-| `qs-scraper` | — | Polls `/health` every 15s → writes to `metrics-quantumstate` |
-| `qs-mcp-runner` | — | Polls `remediation-actions-quantumstate` every 0.5s → `docker restart` |
+| `qs-scraper` | - | Polls `/health` every 15s, writes to `metrics-quantumstate` |
+| `qs-mcp-runner` | - | Polls `remediation-actions-quantumstate` every 0.5s, runs `docker restart` |
 
 Once up, the scraper immediately starts writing real readings to Elasticsearch. Cassandra has live data to work with.
 
@@ -300,6 +289,22 @@ The whole loop — memory climbing, detection, restart, recovery — is observab
 3. Inject a fault via the TUI (`uv run python infra/control.py`)
 4. Wait ~60–90 seconds for the fault to appear in the metrics index
 5. Open `http://localhost:8080` → Console → **Run Pipeline**
+
+---
+
+## Running the Pipeline
+
+### SRE Console
+
+Click **Run Pipeline** from the Console tab to invoke the full four-agent chain. Each agent's reasoning streams live as it runs. Toggle **Auto Pipeline** to run automatically on a schedule.
+
+<img src="images/Console and TUI.png" width="720" alt="SRE Console and TUI" />
+
+### Simulation & Setup
+
+No Docker? The Simulation & Setup page lets you manage the full environment from the browser — create indices, seed data, inject synthetic anomalies, and run the MCP Runner in-process without any containers.
+
+<img src="images/Sim Control.png" width="720" alt="Simulation and Setup" />
 
 ---
 
