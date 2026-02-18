@@ -12,6 +12,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from inject import inject_memory_leak, inject_deployment_rollback, inject_error_spike
 from elastic import get_es
 
+# Allow importing elastic-setup scripts for runbook seeding
+sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "..", "elastic-setup"))
+import seed_runbooks
+
 router = APIRouter(prefix="/sim", tags=["sim"])
 
 # ── Shared streamer state ──────────────────────────────────────────────────────
@@ -122,6 +126,21 @@ QUANTUMSTATE_INDICES = {
             "exec_id":         {"type": "keyword"},
             "outcome":         {"type": "keyword"},
             "recovery_initiated": {"type": "boolean"},
+        }}
+    },
+    "runbooks-quantumstate": {
+        "mappings": {"properties": {
+            "runbook_id":             {"type": "keyword"},
+            "title":                  {"type": "text"},
+            "service":                {"type": "keyword"},
+            "action_type":            {"type": "keyword"},
+            "risk_level":             {"type": "keyword"},
+            "estimated_time_minutes": {"type": "integer"},
+            "steps":                  {"type": "text"},
+            "runbook_text": {
+                "type":         "semantic_text",
+                "inference_id": ".elser-2-elasticsearch",
+            },
         }}
     },
 }
@@ -1081,9 +1100,23 @@ def run_setup():
     es.bulk(operations=[op for d in inc_docs for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
 
     for idx in QUANTUMSTATE_INDICES:
-        es.indices.refresh(index=idx)
+        try:
+            es.indices.refresh(index=idx)
+        except Exception:
+            pass  # index may not exist if ELSER wasn't deployed
 
-    return {"ok": True, "metric_docs": len(docs), "log_docs": len(log_docs), "incidents_seeded": len(inc_docs)}
+    # Seed runbooks if the index exists but is empty
+    runbooks_seeded = 0
+    try:
+        if es.indices.exists(index="runbooks-quantumstate"):
+            rb_count = es.count(index="runbooks-quantumstate").get("count", 0)
+            if rb_count == 0:
+                seed_runbooks.seed()
+                runbooks_seeded = len(seed_runbooks.RUNBOOKS)
+    except Exception as exc:
+        print(f"[sim/setup] Warning: could not seed runbooks: {exc}")
+
+    return {"ok": True, "metric_docs": len(docs), "log_docs": len(log_docs), "incidents_seeded": len(inc_docs), "runbooks_seeded": runbooks_seeded}
 
 
 @router.post("/stream/start")

@@ -186,17 +186,9 @@ Alternatively, create the workflow manually in the Kibana UI by importing `elast
 ./start.sh
 ```
 
-Once running, open `http://localhost:8080` → **Sim Control → Setup**. This creates all Elasticsearch indices (including `incidents-quantumstate` with its ELSER `semantic_text` field) and seeds 100 historical incidents used for semantic similarity search.
+Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setup**. This creates all 7 Elasticsearch indices — including `incidents-quantumstate` and `runbooks-quantumstate` with their ELSER `semantic_text` field mappings — and seeds 100 historical incidents and 8 runbooks in a single pass. Both are required before the next step, as Kibana validates those indices exist at tool creation time.
 
-### Step 5: Seed the Runbook Library
-
-```bash
-python elastic-setup/seed_runbooks.py
-```
-
-Creates the `runbooks-quantumstate` index and seeds 8 runbooks covering all known incident patterns. The Surgeon agent uses this as a semantically searchable procedure library before executing any remediation. This must run before the next step — Kibana validates the index exists when the tool is created.
-
-### Step 6: Create Agents and Tools
+### Step 5: Create Agents and Tools
 
 ```bash
 python elastic-setup/setup_agents.py
@@ -364,8 +356,9 @@ The entire incident — real memory allocation, real container restart, real rec
 | `agent-decisions-quantumstate` | Agent decision audit trail |
 | `remediation-actions-quantumstate` | Action queue polled by the MCP Runner |
 | `remediation-results-quantumstate` | Guardian verdicts and post-fix metric readings |
+| `runbooks-quantumstate` | Semantically searchable remediation procedure library (ELSER) |
 
-All indices are created automatically the first time a document is written to them.
+Indices are created by **Simulation & Setup → Run Setup** (Step 4). The `incidents-quantumstate` and `runbooks-quantumstate` indices require explicit creation with ELSER `semantic_text` field mappings and cannot be auto-created on first write.
 
 ---
 
@@ -389,7 +382,9 @@ quantumstate/
 │       ├── incidents.py        Incident feed + MTTR stats
 │       └── health.py           Live service health
 ├── elastic-setup/
+│   ├── setup_elser.py          ELSER inference endpoint deployment (one-time)
 │   ├── setup_agents.py         One-shot agent + tool provisioning
+│   ├── seed_runbooks.py        Runbook library seeder (8 runbooks)
 │   └── workflows/
 │       ├── remediation-workflow.yaml
 │       └── deploy_workflow.py

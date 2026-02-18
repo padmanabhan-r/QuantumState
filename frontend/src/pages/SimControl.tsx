@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical, Bot, ChevronDown } from "lucide-react";
+import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical, ChevronDown, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ElasticIcon from "@/components/ElasticIcon";
 import { API as API_BASE } from "@/lib/config";
@@ -130,6 +130,22 @@ export default function SimControl() {
       {/* Body */}
       <main className="flex-1 p-6 flex flex-col gap-6">
 
+        {/* ── Instructions ────────────────────────────────────────── */}
+        <div className="rounded-lg border border-border bg-card px-3 py-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground">Instructions</span>
+          <span className="text-border">|</span>
+          <span><strong>1.</strong> <strong>Run Setup</strong></span>
+          <span className="text-border">|</span>
+          <span><strong>2.</strong> <strong>Start</strong> Live Streamer</span>
+          <span className="text-border">|</span>
+          <span><strong>3.</strong> <strong>Inject</strong> anomaly</span>
+          <span className="text-border">|</span>
+          <span><strong>4.</strong> <Link to="/console" className="text-secondary hover:underline">Console</Link> → <strong>Run Pipeline</strong></span>
+          <span className="text-border">|</span>
+          <span><strong>5.</strong> <strong>MCP Runner Auto</strong> for remediation</span>
+        </div>
+
         {/* ── Synthetic Sim ────────────────────────────────────────── */}
         <section className="rounded-xl border bg-card flex flex-col gap-4 p-4"
           style={{ borderColor: "hsl(221 83% 53% / 0.3)", boxShadow: "0 0 20px hsl(221 83% 53% / 0.06)" }}>
@@ -176,11 +192,11 @@ export default function SimControl() {
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Baseline Setup</div>
                   <p className="text-xs text-muted-foreground">Create indices + 24 h baseline data + 4 seed incidents.</p>
                 </div>
-                <div className="flex gap-2 flex-1 flex-wrap">
+                <div className="flex gap-1 flex-1 flex-nowrap overflow-hidden">
                   {status ? Object.entries(status.indices).map(([name, info]) => (
                     <span
                       key={name}
-                      className="rounded-full px-2.5 py-1 text-[10px] font-mono border"
+                      className="rounded-full px-2 py-0.5 text-[9px] font-mono border shrink-0"
                       style={info.exists ? {
                         color: "hsl(160 84% 39%)", borderColor: "hsl(160 84% 39% / 0.3)", background: "hsl(160 84% 39% / 0.06)",
                       } : {
@@ -293,26 +309,17 @@ export default function SimControl() {
                     Run Once
                   </Button>
 
-                  {/* Auto toggle switch */}
-                  <button
+                  {/* Auto toggle button */}
+                  <Button
+                    size="sm"
+                    variant={mcpAuto ? "default" : "outline"}
                     onClick={() => setMcpAuto(v => !v)}
-                    className="flex items-center gap-2 shrink-0 focus:outline-none"
-                    aria-label="Toggle auto mode"
+                    disabled={busy === "mcp-run"}
+                    className={mcpAuto ? "bg-gradient-blue text-white shrink-0" : "shrink-0"}
                   >
-                    <span
-                      className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200"
-                      style={{ background: mcpAuto ? "hsl(160 84% 39%)" : "hsl(var(--muted-foreground) / 0.25)" }}
-                    >
-                      <span
-                        className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200"
-                        style={{ transform: mcpAuto ? "translateX(18px)" : "translateX(2px)" }}
-                      />
-                    </span>
-                    <span className="text-xs font-medium transition-colors duration-200"
-                      style={{ color: mcpAuto ? "hsl(160 84% 39%)" : "hsl(var(--muted-foreground))" }}>
-                      Auto
-                    </span>
-                  </button>
+                    <Play className="h-3.5 w-3.5 mr-1.5" />
+                    Auto {mcpAuto ? "On" : "Off"}
+                  </Button>
                 </div>
 
                 {/* Activity feed */}

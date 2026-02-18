@@ -16,20 +16,18 @@ python elastic-setup/setup_elser.py
 python elastic-setup/workflows/deploy_workflow.py
 # → copy the printed workflow ID into .env as REMEDIATION_WORKFLOW_ID
 
-# 3. Seed the historical incidents baseline (100 incidents) and start the app,
-#    then POST /api/sim/setup so incidents-quantumstate exists before step 5
+# 3. Start the app, then run Setup in the UI — this creates all 7 indices and seeds
+#    both the 100 historical incidents and the 8 runbooks in a single pass.
+#    Both incidents-quantumstate and runbooks-quantumstate must exist before step 4,
+#    as Kibana validates those indices at tool creation time.
 ./start.sh
-# → open http://localhost:8080, go to Sim Control → Setup
+# → open http://localhost:8080, go to Simulation & Setup → Run Setup
 
-# 4. Seed the runbooks index (required before setup_agents.py — Kibana validates the
-#    index exists at tool creation time)
-python elastic-setup/seed_runbooks.py
-
-# 5. Create all 13 tools and 4 agents via the Kibana API
+# 4. Create all 13 tools and 4 agents via the Kibana API
 python elastic-setup/setup_agents.py
 ```
 
-> **Why this order matters:** `setup_agents.py` creates two Index Search tools (`find_similar_incidents` and `find_relevant_runbook`) that target live Elasticsearch indices. Kibana validates the index pattern resolves to an existing index at tool creation time — if the index doesn't exist yet, tool creation fails.
+> **Why this order matters:** `setup_agents.py` creates two Index Search tools (`find_similar_incidents` and `find_relevant_runbook`) that target live Elasticsearch indices. Kibana validates the index pattern resolves to an existing index at tool creation time — if either `incidents-quantumstate` or `runbooks-quantumstate` doesn't exist yet, tool creation fails. Running Setup in the UI (step 3) creates and seeds both before agents are provisioned.
 
 ---
 
@@ -235,7 +233,7 @@ about 'memory leak', and a query about 'cache offline' should match 'Redis unava
 Return the single most relevant runbook for the described situation.
 ```
 
-> **Index prerequisite:** Run `python elastic-setup/seed_runbooks.py` to create and populate the `runbooks-quantumstate` index with 8 runbooks before creating this tool. Kibana validates the index exists at tool creation time.
+> **Index prerequisite:** The `runbooks-quantumstate` index is created and seeded automatically by **Simulation & Setup → Run Setup** (step 3 in the setup order above). If needed it can also be seeded manually: `python elastic-setup/seed_runbooks.py`. Either way the index must exist before creating this tool — Kibana validates at tool creation time.
 
 **Parameters:** None — the agent describes the symptom as a natural language query.
 

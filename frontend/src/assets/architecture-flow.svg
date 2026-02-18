@@ -132,24 +132,24 @@
   <!-- ══ SURGEON ════════════════════════════════════════════════════════════════ -->
   <line x1="20" y1="408" x2="1240" y2="408" stroke="#1f2937" stroke-width="1"/>
   <rect x="304" y="414" width="116" height="20" rx="5" fill="#0d2218" stroke="#10b981" stroke-width="1"/>
-  <text x="362" y="428" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="12" font-weight="600">🔧  Surgeon</text>
+  <text x="362" y="428" text-anchor="middle" fill="#6ee7b7" font-family="system-ui,sans-serif" font-size="12" font-weight="600">⚕️  Surgeon</text>
 
   <line class="flow-fwd" x1="362" y1="454" x2="605" y2="454" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arr-yel)"/>
-  <text x="492" y="448" text-anchor="middle" fill="#fcd34d" font-family="system-ui,sans-serif" font-size="12">Verify current state · log action</text>
+  <text x="492" y="448" text-anchor="middle" fill="#fcd34d" font-family="system-ui,sans-serif" font-size="12">Sample baseline metrics · log intended action</text>
 
   <path class="flow-loop" d="M623 468 Q667 468 667 480 Q667 492 623 492" fill="none" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arr-yel)"/>
   <text x="677" y="484" fill="#fcd34d" font-family="system-ui,sans-serif" font-size="11">Query metrics</text>
 
   <line class="flow-ret" x1="605" y1="506" x2="380" y2="506" stroke="#6b7280" stroke-width="1" marker-end="url(#arr-ret)"/>
-  <text x="492" y="500" text-anchor="middle" fill="#9ca3af" font-family="system-ui,sans-serif" font-size="12">Incident report · action · confidence</text>
+  <text x="492" y="500" text-anchor="middle" fill="#9ca3af" font-family="system-ui,sans-serif" font-size="12">Recommendation · confidence</text>
 
   <!-- ══ TRIGGER REMEDIATION ════════════════════════════════════════════════════ -->
   <line x1="20" y1="522" x2="1240" y2="522" stroke="#1f2937" stroke-width="1"/>
   <rect x="252" y="528" width="220" height="20" rx="5" fill="#2d1a04" stroke="#f97316" stroke-width="1"/>
-  <text x="362" y="542" text-anchor="middle" fill="#fdba74" font-family="system-ui,sans-serif" font-size="12" font-weight="600">⚡  Trigger Remediation (conf ≥ 0.8)</text>
+  <text x="362" y="542" text-anchor="middle" fill="#fdba74" font-family="system-ui,sans-serif" font-size="12" font-weight="600">⚡  Surgeon: conf ≥ 0.8 → remediate</text>
 
   <line class="flow-fwd-fast" x1="362" y1="568" x2="856" y2="568" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-org)"/>
-  <text x="609" y="562" text-anchor="middle" fill="#fdba74" font-family="system-ui,sans-serif" font-size="12">Trigger Elastic remediation workflow</text>
+  <text x="609" y="562" text-anchor="middle" fill="#fdba74" font-family="system-ui,sans-serif" font-size="12">Surgeon triggers remediation workflow</text>
 
   <path class="flow-loop" d="M874 582 Q922 582 922 594 Q922 606 874 606" fill="none" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-org)"/>
   <text x="932" y="598" fill="#fdba74" font-family="system-ui,sans-serif" font-size="11">Create Case</text>
