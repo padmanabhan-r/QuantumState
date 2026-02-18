@@ -1,6 +1,7 @@
 """POST /api/pipeline/run — SSE stream through all 3 agents."""
 import os
 import json
+import threading
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -15,6 +16,10 @@ router = APIRouter(tags=["pipeline"])
 
 _SELF_BASE = os.getenv("SELF_BASE_URL", "http://localhost:8000")
 
+# Prevent concurrent pipeline runs — two simultaneous requests both pass the dedup
+# check before either writes a REMEDIATING incident, producing duplicate incidents.
+_pipeline_lock = threading.Lock()
+
 AGENT_IDS = {
     "cassandra":     "cassandra-detection-agent",
     "archaeologist": "archaeologist-investigation-agent",
@@ -25,7 +30,7 @@ CASSANDRA_PROMPT = """
 You are the first agent in the QuantumState incident pipeline.
 
 Scan all services for anomalies. Run your detection tools:
-1. detect_memory_leak — find services where memory has peaked above 70% in the last 30 minutes. Use MAX or peak values, not averages — a progressive leak shows as a rising trend.
+1. detect_memory_leak — find services where memory has peaked above 65% in the last 5 minutes. Use MAX or peak values, not averages — a progressive leak shows as a rising trend.
 2. detect_error_spike — find services where error rate > 3 errors/min
 3. If an anomaly is found, run calculate_time_to_failure for that service
 
@@ -82,7 +87,7 @@ def _parse_field_value(text: str, field: str) -> str:
 
 
 def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
-                                 archaeologist_output: str):
+                                 archaeologist_output: str, incident_id: str = ""):
     """
     Parse Surgeon output. If autonomous mode is on and confidence is sufficient,
     trigger the Kibana Workflow and write the action to ES.
@@ -108,6 +113,55 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
     except (ValueError, TypeError):
         confidence = 0.0
 
+    resolution_status = _parse_field_value(surgeon_output, "resolution_status").upper()
+
+    # If Surgeon successfully triggered the workflow, it returns REMEDIATING.
+    # Still emit remediation_triggered so the frontend schedules Guardian,
+    # and call /api/workflow/trigger to ensure status=pending is written to ES
+    # for the MCP Runner (Kibana Workflow ES-write step may fail silently).
+    if resolution_status == "REMEDIATING" and service:
+        if not recommended_action:
+            recommended_action = _ACTION_MAP.get(anomaly_type.lower(), "restart_service")
+        yield _event("remediation_triggered", {
+            "agent":      "surgeon",
+            "text":       f"Surgeon triggered autonomous remediation: {recommended_action} on {service} "
+                          f"(confidence {confidence:.2f}, risk: {risk_level})",
+            "service":    service,
+            "action":     recommended_action,
+            "confidence": confidence,
+            "risk_level": risk_level,
+        })
+        try:
+            import requests as _req
+            payload = {
+                "incident_id":      incident_id,
+                "service":          service,
+                "action":           recommended_action,
+                "anomaly_type":     anomaly_type,
+                "root_cause":       root_cause,
+                "confidence_score": confidence,
+                "risk_level":       risk_level,
+            }
+            rem_resp = _req.post(
+                f"{_SELF_BASE}/api/workflow/trigger",
+                json=payload,
+                timeout=20,
+            )
+            rem_data = rem_resp.json() if rem_resp.ok else {}
+            yield _event("remediation_executing", {
+                "agent":      "surgeon",
+                "text":       f"Action written to coordination bus — "
+                              f"exec_id: {rem_data.get('exec_id', 'n/a')}",
+                "exec_id":    rem_data.get("exec_id", ""),
+                "wf_trigger": rem_data.get("workflow_triggered", False),
+            })
+        except Exception as exc:
+            yield _event("remediation_error", {
+                "agent": "surgeon",
+                "text":  f"Coordination bus write failed: {exc}",
+            })
+        return
+
     if not service or confidence < _CONFIDENCE_THRESHOLD:
         if service and confidence > 0:
             yield _event("remediation_skipped", {
@@ -120,12 +174,13 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
     if not recommended_action:
         recommended_action = _ACTION_MAP.get(anomaly_type.lower(), "restart_service")
 
-    import uuid
-    incident_id = str(uuid.uuid4())[:12]
+    if not incident_id:
+        import uuid
+        incident_id = str(uuid.uuid4())[:12]
 
     yield _event("remediation_triggered", {
         "agent": "surgeon",
-        "text":  f"Triggering autonomous remediation — {recommended_action} on {service} "
+        "text":  f"Surgeon workflow call failed — fallback trigger: {recommended_action} on {service} "
                  f"(confidence {confidence:.2f}, risk: {risk_level})",
         "service":    service,
         "action":     recommended_action,
@@ -145,17 +200,12 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
             "risk_level":      risk_level,
         }
 
-        # 1. Trigger Kibana Workflow (creates Case + writes to ES coordination index)
-        wf_resp = _req.post(
-            f"{_SELF_BASE}/api/workflow/trigger",
-            json=payload,
-            timeout=15,
-        )
-        wf_data = wf_resp.json() if wf_resp.ok else {}
-
-        # 2. Execute metric recovery immediately (runner pattern)
+        # Write status=pending to remediation-actions-quantumstate so the MCP Runner
+        # can pick it up and execute docker restart. Also attempts the Kibana Workflow
+        # for Case creation. If Docker is unavailable, MCP Runner calls /api/remediate
+        # as its own fallback.
         rem_resp = _req.post(
-            f"{_SELF_BASE}/api/remediate",
+            f"{_SELF_BASE}/api/workflow/trigger",
             json=payload,
             timeout=20,
         )
@@ -163,12 +213,10 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
 
         yield _event("remediation_executing", {
             "agent":      "surgeon",
-            "text":       f"Remediation executing — recovery metrics being written. "
-                          f"exec_id: {rem_data.get('exec_id', 'n/a')} | "
-                          f"workflow: {'triggered' if wf_data.get('workflow_triggered') else 'ES-direct'}",
+            "text":       f"Action queued for MCP Runner (status=pending) — "
+                          f"exec_id: {rem_data.get('exec_id', 'n/a')}",
             "exec_id":    rem_data.get("exec_id", ""),
-            "points":     rem_data.get("recovery_points_written", 0),
-            "wf_trigger": wf_data.get("workflow_triggered", False),
+            "wf_trigger": rem_data.get("workflow_triggered", False),
         })
 
     except Exception as exc:
@@ -179,6 +227,21 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
 
 
 def _pipeline_generator():
+    # Prevent concurrent runs — two simultaneous requests both pass the ES dedup
+    # check before either writes a REMEDIATING incident, producing duplicate incidents.
+    if not _pipeline_lock.acquire(blocking=False):
+        yield _event("pipeline_complete", {
+            "text": "Pipeline already running — please wait for the current run to complete before triggering another."
+        })
+        return
+
+    try:
+        yield from _pipeline_body()
+    finally:
+        _pipeline_lock.release()
+
+
+def _pipeline_body():
     try:
         converse_stream = _get_converse_stream()
     except Exception as exc:
@@ -201,13 +264,21 @@ def _pipeline_generator():
             cassandra_output = full_response
     yield _event("agent_complete", {"agent": "cassandra", "text": full_response})
 
-    # Stop pipeline if Cassandra found no anomaly
+    # Stop pipeline if Cassandra found no anomaly or returned nothing
+    if not cassandra_output.strip():
+        yield _event("pipeline_complete", {"text": "Cassandra returned no output — no data in the detection window or agent error. Pipeline stopped."})
+        return
     if "anomaly_detected: false" in cassandra_output.lower():
         yield _event("pipeline_complete", {"text": "No anomaly detected — system is healthy. Pipeline stopped."})
         return
 
-    # Dedup: skip only if ALL detected services were already handled in the last 30 min
+    # Dedup: block only if there is an actively REMEDIATING incident for this service
+    # (i.e. the pipeline is mid-flight). RESOLVED / ESCALATE / MONITORING incidents
+    # are closed — a new real incident on the same service must not be suppressed.
+    # A REMEDIATING incident older than 15 min is considered stale (something went
+    # wrong) and is also allowed through.
     from elastic import get_es as _get_es
+    from datetime import datetime as _dt, timezone as _tz
     _KNOWN_SERVICES = ["payment-service", "checkout-service", "auth-service", "inventory-service"]
     _detected_services = [s for s in _KNOWN_SERVICES if s in cassandra_output.lower()]
     if _detected_services:
@@ -223,7 +294,7 @@ def _pipeline_generator():
                             "filter": [
                                 {"term": {"service": _svc}},
                                 {"term": {"pipeline_run": True}},
-                                {"range": {"@timestamp": {"gte": "now-30m"}}},
+                                {"range": {"@timestamp": {"gte": "now-15m"}}},
                             ]
                         }
                     },
@@ -231,23 +302,39 @@ def _pipeline_generator():
                 })
                 if _recent["hits"]["total"]["value"] > 0:
                     _last_doc = _recent["hits"]["hits"][0]["_source"]
-                    _last_ts = _last_doc.get("@timestamp", "")
-                    _resolution = _last_doc.get("resolution_status", "")
-                    # Allow re-run if the previous incident was escalated (unresolved)
-                    if _resolution in ("ESCALATE", "escalate", ""):
-                        _new_services.append(_svc)
+                    _last_ts  = _last_doc.get("@timestamp", "")
+                    _resolution = _last_doc.get("resolution_status", "").upper()
+                    try:
+                        _age = (_dt.now(_tz.utc) - _dt.fromisoformat(
+                            _last_ts.replace("Z", "+00:00")
+                        )).total_seconds() / 60
+                    except Exception:
+                        _age = 0
+
+                    if _resolution == "REMEDIATING" and _age < 15:
+                        # Actively in-flight — block
+                        _handled_services.append(
+                            f"{_svc} (remediating since {_last_ts[:16].replace('T',' ')} UTC)"
+                        )
+                    elif _resolution == "RESOLVED" and _age < 3:
+                        # Brief ghost-protection window: detection window is 5 min,
+                        # stale peak data clears in ~5 min but we protect the first 3
+                        # to avoid junk MONITORING incidents from the previous peak.
+                        _handled_services.append(
+                            f"{_svc} (resolved {_age:.1f}m ago — ghost cooldown)"
+                        )
                     else:
-                        _handled_services.append(f"{_svc} (handled {_last_ts[:16].replace('T',' ')} UTC)")
+                        # ESCALATE / MONITORING / stale REMEDIATING / RESOLVED > 3 min
+                        # — allow new detection
+                        _new_services.append(_svc)
                 else:
                     _new_services.append(_svc)
 
             if not _new_services:
-                # All detected services are in cooldown — skip
                 yield _event("pipeline_complete", {
-                    "text": f"Skipped — all incidents already handled within cooldown: {', '.join(_handled_services)}"
+                    "text": f"Skipped — active remediation already in progress: {', '.join(_handled_services)}"
                 })
                 return
-            # Some services are new — proceed (Surgeon will write for all detected)
         except Exception:
             pass  # if check fails, continue with pipeline
 
@@ -270,7 +357,12 @@ Return: service, anomaly_type, root_cause, evidence, recommended_action, histori
             archaeologist_output = full_response
     yield _event("agent_complete", {"agent": "archaeologist", "text": full_response})
 
+    import uuid as _uuid
+    incident_id = str(_uuid.uuid4())[:12]
+
     surgeon_prompt = f"""You are the third agent in the QuantumState pipeline.
+
+Incident ID: {incident_id}
 
 Archaeologist findings:
 {archaeologist_output}
@@ -278,18 +370,29 @@ Archaeologist findings:
 Cassandra detection:
 {cassandra_output}
 
-Run: get_recent_anomaly_metrics, verify_resolution, log_remediation_action.
+IMPORTANT: If multiple services were flagged as anomalous, remediate ONLY the single most critical one this run — the service with the highest confidence or most severe metric deviation. Set all other detected services to MONITORING. The pipeline will handle them on the next run.
 
-Return the final incident report using EXACTLY this format (one field per line, dash prefix):
+For the ONE most critical service, run these steps:
+1. get_recent_anomaly_metrics — confirm the anomaly is still present for that service
+2. log_remediation_action — record the intended action before triggering anything
+3. If confidence >= 0.8 and anomaly still present: call quantumstate.autonomous_remediation with ALL of these parameters:
+   - incident_id: {incident_id}
+   - service: <the service name you are handling>
+   - action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
+   - anomaly_type: <anomaly type for this service>
+   - root_cause: <root cause from Archaeologist for this service>
+   - confidence_score: <your confidence as decimal 0.0-1.0>
+   - risk_level: <low | medium | high>
+4. If confidence < 0.8 or anomaly resolved: do NOT call the workflow — set resolution_status to ESCALATE or MONITORING
+
+Return one output block per detected service using EXACTLY this format (one field per line, dash prefix):
 - service: <service name>
 - anomaly_type: <type>
 - root_cause: <description>
-- action_taken: <what was done>
 - recommended_action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
 - confidence_score: <decimal 0.0 to 1.0, e.g. 0.91>
 - risk_level: <one of: low | medium | high>
-- resolution_status: RESOLVED, PARTIALLY_RESOLVED, MONITORING, or ESCALATE
-- mttr_estimate: <e.g. 4 min>
+- resolution_status: REMEDIATING, MONITORING, or ESCALATE
 - lessons_learned: <description>
 - pipeline_summary: <one sentence>"""
 
@@ -304,7 +407,7 @@ Return the final incident report using EXACTLY this format (one field per line, 
     # ── Autonomous remediation trigger ────────────────────────────────────────
     # If confidence is sufficient, trigger the Kibana Workflow + write action to ES
     yield from _maybe_trigger_remediation(
-        surgeon_output, cassandra_output, archaeologist_output
+        surgeon_output, cassandra_output, archaeologist_output, incident_id
     )
 
     # Parse surgeon output and write one incident doc per service found

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-QuantumState is an autonomous SRE agent swarm system that detects, investigates, and auto-remediates production incidents using Elasticsearch 9.x, ES|QL, and Python. The system consists of 3 specialized agents that work together to predict failures before they cascade.
+QuantumState is an autonomous SRE agent swarm that detects, investigates, and auto-remediates production incidents using Elasticsearch, ES|QL, ELSER, and Elastic Agent Builder. The system consists of **4 native Kibana Agent Builder agents** that run inside your Elastic cluster — no external LLM API keys required.
 
 ## Committing
 
@@ -21,16 +21,25 @@ source .venv/bin/activate
 pip install elasticsearch python-dotenv requests faker pandas numpy
 
 # Configure Elastic credentials (create .env file)
-# Required vars: ELASTIC_CLOUD_ID, ELASTIC_PASSWORD, ELASTIC_URL, KIBANA_URL
+# Required vars: ELASTIC_CLOUD_ID, ELASTIC_API_KEY
+# Optional: ELASTIC_URL (for local Docker), KIBANA_URL, SELF_BASE_URL, REMEDIATION_WORKFLOW_ID
 ```
 
-### Elastic Stack Operations
+### Elastic Stack Setup (run in order)
 ```bash
-# Create index templates
-python elastic-setup/templates/create_templates.py
+# 1. Deploy ELSER sparse embedding model (required for semantic search)
+python elastic-setup/setup_elser.py
 
-# Generate synthetic data (metrics, logs, incidents)
-python data/generators/generate_all.py
+# 2. Deploy the Kibana remediation workflow
+python elastic-setup/workflows/deploy_workflow.py
+# → copy the printed workflow ID into .env as REMEDIATION_WORKFLOW_ID
+
+# 3. Start the app, open http://localhost:8080, go to Simulation & Setup → Run Setup
+#    Creates all 7 indices and seeds historical incidents + 8 runbooks
+./start.sh
+
+# 4. Provision all 13 tools and 4 agents via Kibana API
+python elastic-setup/setup_agents.py
 ```
 
 ### Running the Application
@@ -47,160 +56,175 @@ cd frontend && npm run dev
 
 ### Agent Swarm Pattern
 
-The system uses a **hand-off pattern** where agents pass structured data through a chain:
+The system uses **4 native Elastic Agent Builder agents**, orchestrated by a Python FastAPI backend via SSE streaming. The pipeline calls each agent sequentially, passing the prior agent's output as context:
 
-1. **Cassandra** (Detection) - Uses ES|QL to detect anomalies in metrics, predicts time-to-failure
-2. **Archaeologist** (Investigation) - Searches logs/deployments, builds evidence chains, determines root cause
-3. **Tactician** (Decision) - Evaluates remediation options, determines if approval needed
-4. **Diplomat** (Liaison) - Manages human approvals and communications (optional gate)
-5. **Surgeon** (Execution) - Executes Elastic Workflows with rollback safety
-6. **Guardian** (Verification) - Validates outcomes, stores learnings
+1. **Cassandra** (Detection) — ES|QL queries detect anomalies in metrics; returns anomaly type, confidence, and time-to-failure estimate
+2. **Archaeologist** (Investigation) — Searches logs, correlates deployments, uses ELSER hybrid search to surface similar historical incidents; returns root cause and evidence chain
+3. **Surgeon** (Remediation) — Retrieves relevant runbook via ELSER, samples metrics, triggers the Elastic Workflow (confidence ≥ 0.8); autonomous if threshold met
+4. **Guardian** (Verification) — Runs 60–90s post-remediation; checks memory, error rate, and latency thresholds; returns `RESOLVED` or `ESCALATE` with MTTR
 
-**Key Concept**: Each agent returns `{'next_agent': 'agent_name', 'data': {...}}` to hand off to the next agent. The orchestrator manages the flow.
+**Roadmap agents** (not yet in pipeline): Tactician (decision/approval gate), Diplomat (human comms).
 
-### Agent Base Class
+**Key concept**: The FastAPI orchestrator in `backend/routers/pipeline.py` calls each Kibana agent in turn via `converse_stream()`. Agents are provisioned via `elastic-setup/setup_agents.py` which hits the Kibana API. There are no Python agent classes — all agent logic lives in Kibana as system prompts + ES|QL/Index Search tools.
 
-All agents inherit from `BaseAgent` (agents/base_agent.py) which provides:
-- Elasticsearch connection management
-- `log_decision()` - Records agent decisions to `agent-decisions-quantumstate` index
-- `run_esql()` - Executes ES|QL queries
-- `search()` - Executes standard Elasticsearch queries
-- `process(input_data)` - Main processing method (must be overridden)
+### Agent Tools
+
+Each agent has purpose-built Kibana tools of two types:
+
+- **ES|QL tools** — parameterised queries against Elasticsearch indices
+- **Index Search tools** — ELSER-powered semantic search (used by Archaeologist's `find_similar_incidents` and Surgeon's `find_relevant_runbook`)
+- **Workflow tool** — `quantumstate.autonomous_remediation` triggers the Kibana Workflow (Surgeon only)
+
+### MCP Runner
+
+The MCP Runner (`infra/mcp-runner/runner.py`) polls `remediation-actions-quantumstate` for `status: "pending"` and executes real `docker restart` via the Docker socket. A synthetic in-process runner is also available at `/api/sim/mcp-runner/execute` for non-Docker setups.
 
 ### Data Indices
 
-The system uses three main index patterns:
-- `metrics-quantumstate*` - Time-series metrics (CPU, memory, error rates)
-- `logs-quantumstate*` - Application logs with severity levels
-- `incidents-quantumstate*` - Historical incidents for learning
-- `agent-decisions-quantumstate*` - Agent decision audit trail
+| Index | Purpose |
+|---|---|
+| `metrics-quantumstate` | Time-series metrics — CPU, memory, error rate, latency |
+| `logs-quantumstate` | Application logs with severity, trace IDs, error codes |
+| `incidents-quantumstate` | Incident records + ELSER `semantic_text` field (`incident_text`) |
+| `agent-decisions-quantumstate` | Full audit trail of every agent decision |
+| `remediation-actions-quantumstate` | Executed remediations — picked up by MCP Runner |
+| `remediation-results-quantumstate` | Guardian verdicts and post-fix metric readings |
+| `runbooks-quantumstate` | 8 runbooks with ELSER `semantic_text` for hybrid retrieval |
 
 ## Key Patterns
 
-### ES|QL for Anomaly Detection
+### ES|QL Detection Queries
 
-ES|QL queries use window functions for baseline comparison:
+Detection queries compare peak values against a baseline using a split-window approach:
+
 ```esql
+FROM metrics-quantumstate
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "memory_percent"
 | STATS
-    current = AVG(value),
-    baseline = AVG(value) OVER (ORDER BY @timestamp ROWS BETWEEN 20 PRECEDING AND 10 PRECEDING)
+    current_memory = AVG(value),
+    peak_memory    = MAX(value)
   BY service, region
-| EVAL rate_per_min = (current - baseline) / 10
-| WHERE rate_per_min > 1.5
+| EVAL deviation_pct = (peak_memory - current_memory) / current_memory * 100
+| WHERE peak_memory > 65 OR deviation_pct > 25
+| SORT peak_memory DESC
+| KEEP service, region, current_memory, peak_memory, deviation_pct
+| LIMIT 10
 ```
 
-This pattern appears throughout Cassandra's detection logic. The moving average baseline helps identify gradual degradation (like memory leaks) vs. spikes.
+Using `MAX(value)` instead of `AVG` prevents signal dilution from averaging — progressive leaks are caught within ~3 minutes of injection rather than only at near-saturation.
 
-### Data Structure for Agent Communication
+### ELSER Hybrid Search
 
-Agents pass enriched context as they process:
-```python
-{
-    'anomaly_detected': True,
-    'anomaly_type': 'memory_leak_progressive',
-    'affected_services': ['payment-service'],
-    'affected_regions': ['us-east-1'],
-    'time_to_critical_seconds': 228,
-    'confidence_score': 90,
-    # Archaeologist adds:
-    'root_cause_hypothesis': '...',
-    'evidence_chain': [...],
-    # Tactician adds:
-    'selected_action': 'immediate_rollback',
-    'approval_required': True
-}
-```
+Two Index Search tools use ELSER semantic embeddings:
 
-Each agent enriches this structure rather than replacing it.
+- `find_similar_incidents` (Archaeologist) — searches `incidents-quantumstate` on `incident_text` field; "heap growing" matches past incidents about "GC pressure" or "OOM kill"
+- `find_relevant_runbook` (Surgeon) — searches `runbooks-quantumstate`; retrieves the most relevant procedure for the failure mode before triggering remediation
 
-### Synthetic Data Generation
+ELSER must be deployed before creating these tools (`python elastic-setup/setup_elser.py`).
 
-Data generators in `data/generators/` create realistic patterns:
-- **Normal metrics**: Baseline with natural variation
-- **Anomaly injection**: Specific failure patterns (memory leaks, error spikes)
-- **Temporal correlation**: Logs correspond to metric anomalies
+### Pipeline Orchestration
 
-When adding new anomaly types, inject both metrics AND corresponding logs to enable correlation.
+`backend/routers/pipeline.py` manages the 4-agent chain:
+
+1. A `threading.Lock` prevents concurrent pipeline runs (race condition on dedup check)
+2. Cassandra empty-output guard — stops pipeline early with a descriptive message if Cassandra returns nothing
+3. Status-driven dedup — `REMEDIATING < 15 min` blocks; `RESOLVED < 3 min` blocks (ghost cooldown); everything else passes through
+4. `_maybe_trigger_remediation()` — parses Surgeon output; if `resolution_status == REMEDIATING` (Surgeon already fired the Workflow tool), emits SSE events; otherwise falls back to direct `/api/workflow/trigger`
 
 ### Environment Configuration
 
-All Elastic connection logic reads from `.env`:
 ```python
 from dotenv import load_dotenv
 load_dotenv()
 
 es = Elasticsearch(
     cloud_id=os.getenv('ELASTIC_CLOUD_ID'),
-    basic_auth=('elastic', os.getenv('ELASTIC_PASSWORD'))
+    api_key=os.getenv('ELASTIC_API_KEY'),
 )
 ```
 
-For local Docker deployments, use `ELASTIC_URL` instead of `CLOUD_ID`.
+For local Docker deployments, use `ELASTIC_URL` instead of `ELASTIC_CLOUD_ID`.
 
 ## Project Structure
 
 ```
 quantumstate/
-├── frontend/            # React + Vite + TypeScript UI
+├── frontend/                   React + Vite + TypeScript UI
 │   └── src/
-│       ├── pages/       # Index, Console, SimControl
-│       └── components/  # console/, landing/, ui/
-├── backend/             # FastAPI Python backend
-│   ├── main.py
-│   ├── elastic.py       # Shared ES client
-│   ├── inject.py        # Anomaly injection functions
-│   ├── orchestrator.py  # Agent Builder converse_stream
-│   └── routers/         # incidents, health, pipeline, chat, sim
-├── start.sh             # Starts both frontend + backend
-└── .env                 # Elastic credentials
+│       ├── pages/              Index, Console, SimControl
+│       └── components/         console/, landing/, ui/
+├── backend/                    FastAPI Python backend
+│   ├── main.py                 App entry, lifespan, router registration
+│   ├── elastic.py              Shared ES client
+│   ├── inject.py               Anomaly injection functions
+│   ├── orchestrator.py         Agent Builder converse_stream + _write_incident
+│   └── routers/
+│       ├── pipeline.py         4-agent SSE orchestration + remediation trigger
+│       ├── remediate.py        Recovery metric writes + workflow trigger
+│       ├── sim.py              Simulation control + synthetic MCP runner
+│       ├── incidents.py        Incident feed + MTTR stats
+│       ├── health.py           Live service health aggregations
+│       └── chat.py             Direct agent chat endpoint
+├── elastic-setup/
+│   ├── setup_agents.py         Provisions all 13 tools + 4 agents via Kibana API
+│   ├── setup_elser.py          Deploys .elser-2-elasticsearch inference endpoint
+│   ├── seed_runbooks.py        Creates runbooks-quantumstate + seeds 8 runbooks
+│   └── workflows/
+│       ├── remediation-workflow.yaml
+│       └── deploy_workflow.py
+├── infra/
+│   ├── docker-compose.yml      4 services + Redis + scraper + MCP runner
+│   ├── services/               FastAPI containers (payment, checkout, auth, inventory)
+│   ├── scraper/                Polls /health, writes to metrics-quantumstate
+│   ├── mcp-runner/             Polls ES for pending actions, runs docker restart
+│   └── control.py              TUI control panel for real-infra demo
+├── images/                     Screenshots for README / agents-definition.md
+├── agents-definition.md        Full Kibana setup reference (agents, tools, prompts)
+├── start.sh                    Starts frontend + backend
+└── .env                        Elastic credentials (not committed)
 ```
-
-## Testing Strategy
-
-Current testing approach:
-1. Generate synthetic data with known anomalies
-2. Run individual agents with mock inputs
-3. Verify agent output structure
-4. Run full orchestrator to test end-to-end flow
-
-When adding new agents, test in isolation first using the `if __name__ == '__main__'` pattern shown in existing agents.
 
 ## Common Scenarios
 
+### Adding a New ES|QL Tool to an Agent
+
+1. Test the query in Kibana Dev Tools first
+2. Add the tool definition to `TOOLS` list in `elastic-setup/setup_agents.py`
+3. Update the agent's system prompt in the same file to instruct when to call it
+4. Re-run `python elastic-setup/setup_agents.py` (it patches existing tools, creates new ones)
+
 ### Adding a New Agent
 
-1. Inherit from `BaseAgent`
-2. Implement `process(input_data)` method
-3. Use `self.log_decision()` to record decisions
-4. Return `{'next_agent': 'next', 'data': {...}}`
-5. Add to orchestrator's agent registry
-6. Add test section at bottom of file
+1. Add the agent definition (ID, name, colour, system prompt) to `elastic-setup/setup_agents.py`
+2. Add its tool IDs to the agent's tool list in the same file
+3. Add it to the orchestration flow in `backend/routers/pipeline.py`
+4. Update `AGENT_IDS` dict in `pipeline.py`
 
-### Creating New Anomaly Detection Queries
+### Creating a New Anomaly Injection
 
-1. Test query in Kibana Dev Tools first
-2. Save to `elastic-setup/queries/`
-3. Add to Cassandra agent's detection methods
-4. Update data generators to create test data
-5. Define expected output structure
+1. Add injection function to `backend/inject.py`
+2. Use `latency_ms` (not `request_latency_ms`) for the latency field — must match scraper schema
+3. Inject both metrics AND corresponding logs to enable Archaeologist correlation
+4. Register the scenario in `backend/routers/sim.py`
 
-### Modifying Agent Communication Flow
+### Modifying Detection Thresholds
 
-The orchestrator manages linear flow. To add conditional branching:
-- Agents return `next_agent` based on conditions (see Tactician)
-- Example: `'next_agent': 'diplomat' if approval_required else 'surgeon'`
+Detection thresholds exist in two places and must be kept in sync:
+- `elastic-setup/setup_agents.py` — ES|QL query `WHERE` clause
+- `backend/routers/pipeline.py` — `CASSANDRA_PROMPT` (natural-language description for the agent)
 
 ## Dependencies
 
-Core dependencies (see pyproject.toml):
-- `elasticsearch>=8.11.0` - ES client with ES|QL support
-- `python-dotenv` - Environment variable management
-- `faker`, `pandas`, `numpy` - Data generation
+Core dependencies (see `pyproject.toml`):
+- `elasticsearch>=8.11.0` — ES client with ES|QL support
+- `python-dotenv` — Environment variable management
+- `faker`, `pandas`, `numpy` — Data generation
 
-Requires Python 3.12+ (see .python-version).
+Requires Python 3.12+ (see `.python-version`).
 
-## Elasticsearch Version Requirements
+## Elasticsearch Requirements
 
-- ES 8.x required for ES|QL support
-- Window functions (`OVER` clause) require ES 8.11+
-- Agent Builder features in Kibana require matching version
+- **ES|QL** requires ES 8.x+
+- **ELSER v2 (`semantic_text`)** requires ES 8.11+
+- **Agent Builder** features in Kibana require a matching Elastic Cloud / Serverless deployment
+- **Kibana Workflows** require Kibana 8.14+ or Elastic Serverless

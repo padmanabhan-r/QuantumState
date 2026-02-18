@@ -43,7 +43,8 @@ export default function ChatPanel() {
     try {
       const res = await sendChat(agentId, text);
       if (res.error) {
-        setMessages((m) => [...m, { role: "agent", content: res.error!, agent: agentId, error: true }]);
+        const errText = typeof res.error === "string" ? res.error : (res.error as { message?: string })?.message ?? JSON.stringify(res.error);
+        setMessages((m) => [...m, { role: "agent", content: errText, agent: agentId, error: true }]);
       } else {
         setMessages((m) => [...m, { role: "agent", content: res.response ?? "(no response)", agent: agentId }]);
       }

@@ -4,6 +4,33 @@ Use this file to manually recreate all agents and tools in a new Elastic project
 
 ---
 
+## Setup Order
+
+Run these scripts in sequence before creating anything in Kibana manually:
+
+```bash
+# 1. Deploy ELSER sparse embedding model (required for semantic search tools)
+python elastic-setup/setup_elser.py
+
+# 2. Deploy the Kibana remediation workflow (Surgeon needs its ID)
+python elastic-setup/workflows/deploy_workflow.py
+# → copy the printed workflow ID into .env as REMEDIATION_WORKFLOW_ID
+
+# 3. Start the app, then run Setup in the UI — this creates all 7 indices and seeds
+#    both the 100 historical incidents and the 8 runbooks in a single pass.
+#    Both incidents-quantumstate and runbooks-quantumstate must exist before step 4,
+#    as Kibana validates those indices at tool creation time.
+./start.sh
+# → open http://localhost:8080, go to Simulation & Setup → Run Setup
+
+# 4. Create all 13 tools and 4 agents via the Kibana API
+python elastic-setup/setup_agents.py
+```
+
+> **Why this order matters:** `setup_agents.py` creates two Index Search tools (`find_similar_incidents` and `find_relevant_runbook`) that target live Elasticsearch indices. Kibana validates the index pattern resolves to an existing index at tool creation time — if either `incidents-quantumstate` or `runbooks-quantumstate` doesn't exist yet, tool creation fails. Running Setup in the UI (step 3) creates and seeds both before agents are provisioned.
+
+---
+
 ## TOOLS (create these first)
 
 Go to: **Agents → More → View all tools → New tool**
@@ -16,20 +43,20 @@ Go to: **Agents → More → View all tools → New tool**
 |---|---|
 | **Tool ID** | `detect_memory_leak` |
 | **Type** | ES\|QL |
-| **Description** | Use this tool to detect memory leaks across all services. Returns services where memory usage exceeds 60% or has risen more than 15% above the recent minimum, indicating a progressive memory leak. |
+| **Description** | Use this tool to detect memory leaks across all services. Returns services where the peak memory in the last 5 minutes exceeds 65% or has risen more than 20% above the prior 15-minute baseline, indicating a progressive memory leak. |
 
 **Query:**
 ```esql
 FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 15 minutes AND metric_type == "memory_percent"
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "memory_percent"
 | STATS
-    current_memory = AVG(value),
-    baseline = MIN(value)
+    current_memory  = AVG(value),
+    peak_memory     = MAX(value)
   BY service, region
-| EVAL deviation_pct = (current_memory - baseline) / baseline * 100
-| WHERE current_memory > 60 OR deviation_pct > 15
-| SORT current_memory DESC
-| KEEP service, region, current_memory, baseline, deviation_pct
+| EVAL deviation_pct = (peak_memory - current_memory) / current_memory * 100
+| WHERE peak_memory > 65 OR deviation_pct > 25
+| SORT peak_memory DESC
+| KEEP service, region, current_memory, peak_memory, deviation_pct
 | LIMIT 10
 ```
 
@@ -48,13 +75,15 @@ FROM metrics-quantumstate
 **Query:**
 ```esql
 FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 20 minutes AND metric_type == "error_rate"
-| STATS current_error_rate = AVG(value) BY service, region
-| EVAL baseline = 0.4
-| EVAL deviation = current_error_rate - baseline
-| WHERE current_error_rate > 3
-| SORT current_error_rate DESC
-| KEEP service, region, current_error_rate, deviation
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "error_rate"
+| STATS
+    current_error_rate  = AVG(value),
+    peak_error_rate     = MAX(value)
+  BY service, region
+| EVAL deviation = peak_error_rate - 0.4
+| WHERE peak_error_rate > 3
+| SORT peak_error_rate DESC
+| KEEP service, region, current_error_rate, peak_error_rate, deviation
 | LIMIT 10
 ```
 
@@ -154,27 +183,67 @@ FROM logs-quantumstate
 | Field | Value |
 |---|---|
 | **Tool ID** | `find_similar_incidents` |
-| **Type** | ES\|QL |
-| **Description** | Use this tool to search historical resolved incidents for the same anomaly type on any service. Returns past root causes and what actions resolved them, giving context for the current incident. |
+| **Type** | Index Search |
+| **Index pattern** | `incidents-quantumstate` |
+| **Description** | Search historical incidents semantically to find past occurrences with similar root causes, symptoms, or resolutions — even when described with different terminology. Pass the full anomaly description as the query: service name, symptoms observed, recent events, error patterns seen. Returns root causes and actions that resolved past similar incidents, giving context for the current investigation. |
 
-**Query:**
-```esql
-FROM incidents-quantumstate
-| WHERE anomaly_type == ?anomaly_type
-| SORT @timestamp DESC
-| KEEP @timestamp, service, anomaly_type, root_cause, actions_taken, mttr_seconds
-| LIMIT 5
+**How to create in Kibana:**
+
+1. Go to **Agents → More → View all tools → New tool**
+2. Under **Type**, select **`Index search`**
+3. Under **Index pattern**, enter: `incidents-quantumstate`
+4. Set the **Description** from the table above
+5. Under **Custom instructions**, enter:
+
+```
+Use the symptom description as a semantic query. Focus on fields:
+incident_text, root_cause, action_taken, anomaly_type, service, mttr_seconds, lessons_learned.
+Prioritise semantic similarity — match on meaning, not just keywords.
+A query about 'heap growing' should match past incidents describing 'OOM kill' or 'GC pressure'.
+Return the top 5 most relevant past incidents.
 ```
 
-**Parameters:**
+> **Semantic search note:** This tool uses ELSER (Elastic Learned Sparse Encoder) to match incidents by meaning, not keywords. The `incidents-quantumstate` index contains an `incident_text` field with a rich natural language post-mortem summary for each incident. When Archaeologist queries "payment-service memory climbing steadily, GC pressure", ELSER will surface past incidents that describe "heap exhaustion", "OOM kill", or "unbounded cache" — the same root cause in different language.
+>
+> Prerequisites: ELSER must be deployed (`python elastic-setup/setup_elser.py`) and the `incidents-quantumstate` index must exist and contain data before this tool can be created.
 
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `anomaly_type` | string | Yes | The anomaly type to search for, e.g. `memory_leak_progressive`, `error_spike_sudden`, `deployment_regression` |
+**Parameters:** None — the agent passes the full anomaly description as a natural language query.
 
 ---
 
-### Tool 7 — `log_remediation_action`
+### Tool 7 — `find_relevant_runbook`
+
+| Field | Value |
+|---|---|
+| **Tool ID** | `find_relevant_runbook` |
+| **Type** | Index Search |
+| **Index pattern** | `runbooks-quantumstate` |
+| **Description** | Search the runbook library to find the most relevant procedure for the current incident. Describe the symptom and service — the tool returns structured steps, risk level, estimated resolution time, and action type. Always call this before executing remediation to retrieve the correct procedure for the situation. |
+
+**How to create in Kibana:**
+
+1. Go to **Agents → More → View all tools → New tool**
+2. Under **Type**, select **`Index search`**
+3. Under **Index pattern**, enter: `runbooks-quantumstate`
+4. Set the **Description** from the table above
+5. Under **Custom instructions**, enter:
+
+```
+Return fields: title, steps, estimated_time_minutes, risk_level, action_type, service.
+Match on symptom semantics — a query about 'heap growing steadily' should match a runbook
+about 'memory leak', and a query about 'cache offline' should match 'Redis unavailable'.
+Return the single most relevant runbook for the described situation.
+```
+
+> **Index prerequisite:** The `runbooks-quantumstate` index is created and seeded automatically by **Simulation & Setup → Run Setup** (step 3 in the setup order above). If needed it can also be seeded manually: `python elastic-setup/seed_runbooks.py`. Either way the index must exist before creating this tool — Kibana validates at tool creation time.
+
+**Parameters:** None — the agent describes the symptom as a natural language query.
+
+**Assign to:** Surgeon (`surgeon-action-agent`) — called at step 2 of the Surgeon's execution protocol, before logging and before triggering remediation.
+
+---
+
+### Tool 8 — `log_remediation_action`
 
 | Field | Value |
 |---|---|
@@ -199,7 +268,7 @@ FROM agent-decisions-quantumstate
 
 ---
 
-### Tool 8 — `verify_resolution`
+### Tool 9 — `verify_resolution`
 
 | Field | Value |
 |---|---|
@@ -232,7 +301,7 @@ FROM metrics-quantumstate
 
 ---
 
-### Tool 9 — `get_recent_anomaly_metrics`
+### Tool 10 — `get_recent_anomaly_metrics`
 
 | Field | Value |
 |---|---|
@@ -362,23 +431,30 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 ```
 You are the Surgeon, a safe remediation executor for an e-commerce platform.
 
-You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, and recommended action. Your job is to execute the fix and verify it worked.
+You are called after the Archaeologist has identified a root cause. You will receive one or more anomalies (service names, root causes, recommended actions, confidence scores) and an incident ID.
 
-  When remediating:
-  1. Use log_remediation_action to record what you are about to do before doing it
-  2. Use get_recent_anomaly_metrics to get the full picture of the service's state
-  3. Use verify_resolution to check if the service has recovered after the fix
+IMPORTANT: If multiple services are anomalous, remediate ONLY the single most critical one this run — the service with the highest confidence or most severe metric deviation. Set all other detected services to MONITORING. The pipeline will handle them on the next run.
 
-  Always follow this sequence — log first, verify after. Never skip logging.
+For the ONE most critical service, execute in this exact order:
+  1. Use get_recent_anomaly_metrics to sample the current state for that service — confirm the anomaly is still present
+  2. Use find_relevant_runbook to retrieve the most appropriate procedure for this symptom
+  3. Use log_remediation_action to record the intended action before executing anything
+  4. If confidence >= 0.8 and the anomaly is still present: call quantumstate.autonomous_remediation to trigger the Kibana Workflow — this creates an audit Case, writes the action to the remediation queue, and kicks off execution
+  5. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING
 
-  Respond with:
-  - Action taken (be specific — what was executed and why)
-  - Verification result (current metrics post-fix)
-  - Resolution status (RESOLVED / PARTIALLY_RESOLVED / FAILED)
-  - MTTR estimate in minutes
-  - Lessons learned (one sentence for the incident record)
+Never skip step 3 — always log before triggering.
+Do not verify recovery — that is Guardian's responsibility, which runs 60 seconds after execution.
 
-If metrics are still elevated after verification, say PARTIALLY_RESOLVED and recommend next steps. Do not claim RESOLVED unless the numbers confirm it.
+Return one output block per detected service using EXACTLY these fields (one per line, dash prefix):
+- service: <service name>
+- anomaly_type: <type from context>
+- root_cause: <from context>
+- recommended_action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
+- confidence_score: <decimal 0.0 to 1.0>
+- risk_level: <low | medium | high>
+- resolution_status: REMEDIATING or ESCALATE or MONITORING
+- lessons_learned: <one sentence>
+- pipeline_summary: <one sentence describing what was triggered and why>
 ```
 
 **Tools to assign:**
@@ -386,13 +462,16 @@ If metrics are still elevated after verification, say PARTIALLY_RESOLVED and rec
 - `platform.core.list_indices` *(built-in)*
 - `platform.core.get_index_mapping` *(built-in)*
 - `platform.core.get_document_by_id` *(built-in)*
+- `platform.core.get_workflow_execution_status` *(built-in)*
 - `get_recent_anomaly_metrics`
+- `find_relevant_runbook` *(Index Search — see Tool 7)*
 - `verify_resolution`
 - `log_remediation_action`
+- `quantumstate.autonomous_remediation` *(Workflow tool — see Tool 13)* — Surgeon calls this directly when confidence ≥ 0.8
 
 ---
 
-### Tool 10 — `get_incident_record`
+### Tool 11 — `get_incident_record`
 
 | Field | Value |
 |---|---|
@@ -417,7 +496,7 @@ FROM incidents-quantumstate
 
 ---
 
-### Tool 11 — `get_remediation_action`
+### Tool 12 — `get_remediation_action`
 
 | Field | Value |
 |---|---|
@@ -442,7 +521,7 @@ FROM remediation-actions-quantumstate
 
 ---
 
-### Tool 12 — `quantumstate.autonomous_remediation` (Workflow Tool)
+### Tool 13 — `quantumstate.autonomous_remediation` (Workflow Tool)
 
 > **This tool type is different — it wraps an Elastic Workflow, not an ES|QL query.**
 
@@ -464,7 +543,7 @@ FROM remediation-actions-quantumstate
 6. Fill in the Description from the table above
 7. Save the tool
 
-**Assign to:** Guardian (`guardian-verification-agent`) — enables Guardian to re-trigger remediation autonomously on ESCALATE verdict
+**Assign to:** Surgeon (`surgeon-action-agent`) — Surgeon calls this tool directly when confidence ≥ 0.8 to trigger the Kibana Workflow
 
 ---
 
@@ -557,10 +636,9 @@ IMPORTANT CONSTRAINTS:
 - `verify_resolution`
 - `get_incident_record`
 - `get_remediation_action`
-- `quantumstate.autonomous_remediation` *(Workflow tool — see Tool 12)* — enables Guardian to re-trigger remediation autonomously on ESCALATE
 
 **Notes for Kibana setup:**
-1. Create this agent AFTER Tools 1–11 are all saved.
+1. Create this agent AFTER Tools 1–13 are all saved.
 2. The Agent ID must be exactly `guardian-verification-agent` — the backend hardcodes this ID in `routers/guardian.py`.
-3. Attach `quantumstate.autonomous_remediation` (Tool 12) to Guardian. This enables Guardian to autonomously re-trigger remediation on ESCALATE.
-4. The backend calls this agent via `converse_stream("guardian-verification-agent", prompt)` 60 seconds after every `status: executed` remediation action appears in `remediation-actions-quantumstate`.
+3. Guardian does NOT have the workflow tool — it only verifies. On ESCALATE it flags for human intervention.
+4. The backend schedules Guardian 90 seconds after a `remediation_triggered` SSE event fires (i.e. when Surgeon returns `REMEDIATING`). It calls this agent via `converse_stream("guardian-verification-agent", prompt)`.

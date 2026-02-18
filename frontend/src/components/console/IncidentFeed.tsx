@@ -130,7 +130,7 @@ export default function IncidentFeed() {
 
       {!isLoading && !isError && data?.incidents.length === 0 && (
         <div className="py-16 text-center text-sm text-muted-foreground">
-          No incidents found. Generate some data first.
+          No incidents found.
         </div>
       )}
 

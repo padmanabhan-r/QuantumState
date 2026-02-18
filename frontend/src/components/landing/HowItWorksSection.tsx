@@ -16,20 +16,20 @@ const steps = [
     icon: "🔬",
     label: "Investigate",
     title: "Archaeologist finds the root cause",
-    body: "Searches error logs, correlates deployment events, and matches against historical incidents. Builds an evidence chain linking the symptom to its source.",
+    body: "Searches error logs, correlates deployment events, and uses ELSER-powered hybrid search to surface semantically similar historical incidents — even when described in different language. Builds an evidence chain linking symptom to source.",
     accent: "hsl(188 94% 43%)",        // cyan
     glow:   "hsl(188 94% 43% / 0.15)",
-    tags:   ["Error Log Search", "Deployment Correlation", "Historical Incident Matching"],
+    tags:   ["Error Log Search", "Deployment Correlation", "ELSER Semantic Incident Match"],
   },
   {
     step: "03",
     icon: "🩺",
     label: "Resolve",
     title: "Surgeon triggers the fix",
-    body: "Samples current metrics, logs the remediation action to Elasticsearch, and triggers the Elastic Workflow — which hands off to the MCP Runner to execute the actual container restart via Docker socket. Confidence must reach ≥ 0.8 for autonomous action.",
+    body: "Retrieves the most relevant runbook via ELSER semantic search, samples current metrics, then — at confidence ≥ 0.8 — triggers the Elastic Workflow directly. The Workflow creates a Kibana Case and hands off to the MCP Runner for actual container restart.",
     accent: "hsl(160 84% 39%)",        // green
     glow:   "hsl(160 84% 39% / 0.15)",
-    tags:   ["Pre-Fix Metric Sampling", "Workflow Trigger (conf ≥ 0.8)", "Remediation Audit Log"],
+    tags:   ["ELSER Runbook Retrieval", "Workflow Trigger (conf ≥ 0.8)", "Remediation Audit Log"],
   },
   {
     step: "04",
