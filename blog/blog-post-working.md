@@ -268,6 +268,8 @@ My recommended sequence for testing:
 
 <img src="../images/Pipeline Run - Resolved.png" width="700" alt="Pipeline run completing with Guardian RESOLVED verdict" />
 
+<img src="../images/TUI - After Restart Healthy.png" width="700" alt="TUI showing service recovered after container restart" />
+
 The pipeline runs end to end without human intervention:
 
 - Real memory allocation
