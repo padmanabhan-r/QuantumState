@@ -202,20 +202,34 @@ def converse_stream(agent_id: str, message: str):
 
 def _write_incident(es: Elasticsearch, report: dict) -> str:
     """Write the resolved incident to incidents-quantumstate. Returns doc ID."""
+    # Compose a natural-language summary for ELSER semantic indexing.
+    # This is what find_similar_incidents searches — written richly so future
+    # incidents with similar-but-differently-worded symptoms surface this record.
+    service       = report.get("service", "unknown")
+    anomaly_type  = report.get("anomaly_type", "unknown")
+    root_cause    = report.get("root_cause", "")
+    action_taken  = report.get("action_taken", "")
+    lessons       = report.get("lessons_learned", "")
+    incident_text = (
+        f"{service} {anomaly_type}: {root_cause}. "
+        f"Resolution: {action_taken}. {lessons}"
+    ).strip()
+
     doc = {
         "@timestamp":           datetime.now(timezone.utc).isoformat(),
         "pipeline_run":         True,
-        "service":              report.get("service", "unknown"),
-        "anomaly_type":         report.get("anomaly_type", "unknown"),
-        "root_cause":           report.get("root_cause", ""),
-        "action_taken":         report.get("action_taken", ""),
+        "service":              service,
+        "anomaly_type":         anomaly_type,
+        "root_cause":           root_cause,
+        "action_taken":         action_taken,
         "resolution_status":    report.get("resolution_status", "MONITORING"),
         "mttr_estimate":        report.get("mttr_estimate", ""),
-        "lessons_learned":      report.get("lessons_learned", ""),
+        "lessons_learned":      lessons,
         "pipeline_summary":     report.get("pipeline_summary", ""),
         "cassandra_output":     report.get("cassandra_raw", ""),
         "archaeologist_output": report.get("archaeologist_raw", ""),
         "surgeon_output":       report.get("surgeon_raw", ""),
+        "incident_text":        incident_text,
     }
     result = es.index(index="incidents-quantumstate", document=doc)
     return result["_id"]

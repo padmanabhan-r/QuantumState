@@ -1,10 +1,9 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, Zap, Play, MessageSquare, Activity, Shield } from "lucide-react";
+import { ArrowLeft, Zap, Play, Activity, Shield } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ElasticIcon from "@/components/ElasticIcon";
 import IncidentFeed from "@/components/console/IncidentFeed";
 import PipelinePanel from "@/components/console/PipelinePanel";
-import ChatPanel from "@/components/console/ChatPanel";
 import ActionsPanel from "@/components/console/ActionsPanel";
 import MttrStats from "@/components/console/MttrStats";
 
@@ -94,35 +93,15 @@ const Console = () => {
       {/* ── Main two-panel layout ── */}
       <main className="flex flex-1 overflow-hidden">
 
-        {/* Left panel — Pipeline / Chat tabs */}
+        {/* Left panel — Pipeline */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-r border-border">
-          <Tabs defaultValue="pipeline" className="flex flex-col h-full overflow-hidden">
-            <div className="border-b border-border bg-card/40 px-4 py-2 shrink-0">
-              <TabsList className="h-9 bg-background/60 border border-border p-1 gap-1">
-                <TabsTrigger
-                  value="pipeline"
-                  className="gap-2 rounded-md px-4 text-xs data-[state=active]:bg-secondary/15 data-[state=active]:text-secondary data-[state=active]:border data-[state=active]:border-secondary/30"
-                >
-                  <Play className="h-3 w-3" />
-                  Run Pipeline
-                </TabsTrigger>
-                <TabsTrigger
-                  value="chat"
-                  className="gap-2 rounded-md px-4 text-xs data-[state=active]:bg-[hsl(var(--success)/0.15)] data-[state=active]:text-[hsl(var(--success))] data-[state=active]:border data-[state=active]:border-[hsl(var(--success)/0.3)]"
-                >
-                  <MessageSquare className="h-3 w-3" />
-                  Chat with Agents
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="pipeline" className="flex flex-col flex-1 overflow-hidden p-6 mt-0 data-[state=inactive]:hidden">
-              <PipelinePanel />
-            </TabsContent>
-            <TabsContent value="chat" className="flex flex-col flex-1 overflow-hidden p-6 mt-0 data-[state=inactive]:hidden">
-              <ChatPanel />
-            </TabsContent>
-          </Tabs>
+          <div className="border-b border-border bg-card/40 px-4 py-2 shrink-0 flex items-center gap-2">
+            <Play className="h-3 w-3 text-secondary" />
+            <span className="text-xs font-medium text-secondary">Run Pipeline</span>
+          </div>
+          <div className="flex flex-col flex-1 overflow-hidden p-6">
+            <PipelinePanel />
+          </div>
         </div>
 
         {/* Right panel — Incidents + Actions tabs */}

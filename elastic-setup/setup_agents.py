@@ -93,15 +93,15 @@ TOOLS = [
         "tags": ["cassandra", "detection", "memory"],
         "configuration": {
             "query": """FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 15 minutes AND metric_type == "memory_percent"
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "memory_percent"
 | STATS
-    current_memory = AVG(value),
-    baseline = MIN(value)
+    current_memory  = AVG(value),
+    peak_memory     = MAX(value)
   BY service, region
-| EVAL deviation_pct = (current_memory - baseline) / baseline * 100
-| WHERE current_memory > 60 OR deviation_pct > 15
-| SORT current_memory DESC
-| KEEP service, region, current_memory, baseline, deviation_pct
+| EVAL deviation_pct = (peak_memory - current_memory) / current_memory * 100
+| WHERE peak_memory > 65 OR deviation_pct > 25
+| SORT peak_memory DESC
+| KEEP service, region, current_memory, peak_memory, deviation_pct
 | LIMIT 10""",
             "params": {},
         },
@@ -118,13 +118,15 @@ TOOLS = [
         "tags": ["cassandra", "detection", "errors"],
         "configuration": {
             "query": """FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 20 minutes AND metric_type == "error_rate"
-| STATS current_error_rate = AVG(value) BY service, region
-| EVAL baseline = 0.4
-| EVAL deviation = current_error_rate - baseline
-| WHERE current_error_rate > 3
-| SORT current_error_rate DESC
-| KEEP service, region, current_error_rate, deviation
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "error_rate"
+| STATS
+    current_error_rate  = AVG(value),
+    peak_error_rate     = MAX(value)
+  BY service, region
+| EVAL deviation = peak_error_rate - 0.4
+| WHERE peak_error_rate > 3
+| SORT peak_error_rate DESC
+| KEEP service, region, current_error_rate, peak_error_rate, deviation
 | LIMIT 10""",
             "params": {},
         },
@@ -218,29 +220,51 @@ TOOLS = [
 
     {
         "id": "find_similar_incidents",
-        "type": "esql",
+        "type": "index_search",
         "description": (
-            "Use this tool to search historical resolved incidents for the same anomaly "
-            "type on any service. Returns past root causes and what actions resolved them, "
-            "giving context for the current incident."
+            "Search historical incidents semantically to find past occurrences with similar "
+            "root causes, symptoms, or resolutions — even when described with different terminology. "
+            "Pass the full anomaly description as the query: service name, symptoms observed, "
+            "recent events, error patterns seen. Returns root causes and actions that resolved "
+            "past similar incidents, giving context for the current investigation."
         ),
         "tags": ["archaeologist", "investigation", "history"],
         "configuration": {
-            "query": """FROM incidents-quantumstate
-| WHERE anomaly_type == ?anomaly_type
-| SORT @timestamp DESC
-| KEEP @timestamp, service, anomaly_type, root_cause, actions_taken, mttr_seconds
-| LIMIT 5""",
-            "params": {
-                "anomaly_type": {
-                    "type": "string",
-                    "description": "The anomaly type to search for, e.g. memory_leak_progressive, error_spike_sudden, deployment_regression",
-                },
-            },
+            "pattern": "incidents-quantumstate",
+            "custom_instructions": (
+                "Use the symptom description as a semantic query. Focus on fields: "
+                "incident_text, root_cause, action_taken, anomaly_type, service, mttr_seconds, lessons_learned. "
+                "Prioritise semantic similarity — match on meaning, not just keywords. "
+                "A query about 'heap growing' should match past incidents describing 'OOM kill' or "
+                "'GC pressure'. Return the top 5 most relevant past incidents."
+            ),
         },
     },
 
-    # ── Tools 7–9 — Surgeon ───────────────────────────────────────────────────
+    # ── Tools 7–10 — Surgeon ──────────────────────────────────────────────────
+
+    {
+        "id": "find_relevant_runbook",
+        "type": "index_search",
+        "description": (
+            "Search the runbook library to find the most relevant procedure for the current incident. "
+            "Describe the symptom and service — the tool returns structured steps, risk level, "
+            "estimated resolution time, and action type. Always call this before executing remediation "
+            "to retrieve the correct procedure for the situation."
+        ),
+        "tags": ["surgeon", "remediation", "runbook"],
+        "configuration": {
+            "pattern": "runbooks-quantumstate",
+            "custom_instructions": (
+                "Return fields: title, steps, estimated_time_minutes, risk_level, action_type, service. "
+                "Match on symptom semantics — a query about 'heap growing steadily' should match a runbook "
+                "about 'memory leak', and a query about 'cache offline' should match 'Redis unavailable'. "
+                "Return the single most relevant runbook for the described situation."
+            ),
+        },
+    },
+
+    # ── Tools 8–10 — Surgeon (execution + audit) ──────────────────────────────
 
     {
         "id": "log_remediation_action",
@@ -439,18 +463,21 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 
 SURGEON_INSTRUCTIONS = """You are the Surgeon, a safe remediation executor for an e-commerce platform.
 
-You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, recommended action, confidence score, and an incident ID.
+You are called after the Archaeologist has identified a root cause. You will receive one or more anomalies (service names, root causes, recommended actions, confidence scores) and an incident ID.
 
-Execute in this exact order:
-  1. Use get_recent_anomaly_metrics to sample the current service state — confirm the anomaly is still present
-  2. Use log_remediation_action to record the intended action before executing anything
-  3. If confidence >= 0.8 and the anomaly is still present: call quantumstate.autonomous_remediation to trigger the Kibana Workflow — this creates an audit Case, writes the action to the remediation queue, and kicks off execution
-  4. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING accordingly
+IMPORTANT: If multiple services are anomalous, remediate ONLY the single most critical one this run — the service with the highest confidence or most severe metric deviation. Set all other detected services to MONITORING. The pipeline will handle them on the next run.
 
-Never skip step 2 — always log before triggering.
+For the ONE most critical service, execute in this exact order:
+  1. Use get_recent_anomaly_metrics to sample the current state for that service — confirm the anomaly is still present
+  2. Use find_relevant_runbook to retrieve the most appropriate procedure for this symptom
+  3. Use log_remediation_action to record the intended action before executing anything
+  4. If confidence >= 0.8 and the anomaly is still present: call quantumstate.autonomous_remediation to trigger the Kibana Workflow — this creates an audit Case, writes the action to the remediation queue, and kicks off execution
+  5. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING
+
+Never skip step 3 — always log before triggering.
 Do not verify recovery — that is Guardian's responsibility, which runs 60 seconds after execution.
 
-Respond with EXACTLY these fields (one per line, dash prefix):
+Return one output block per detected service using EXACTLY these fields (one per line, dash prefix):
 - service: <service name>
 - anomaly_type: <type from context>
 - root_cause: <from context>
@@ -573,6 +600,7 @@ def _build_agents() -> list[dict]:
                 "instructions": SURGEON_INSTRUCTIONS,
                 "tools": [{"tool_ids": PLATFORM_TOOLS + [
                     "get_recent_anomaly_metrics",
+                    "find_relevant_runbook",
                     "verify_resolution",
                     "log_remediation_action",
                     "quantumstate.autonomous_remediation",
@@ -642,8 +670,22 @@ def _delete(path: str) -> tuple[int, dict]:
 
 def _upsert_tool(tool: dict) -> str:
     tid = tool["id"]
-    status, _ = _get(f"api/agent_builder/tools/{tid}")
+    status, existing = _get(f"api/agent_builder/tools/{tid}")
     if status == 200:
+        # Tool type cannot be changed via PUT — detect type mismatch and delete+recreate
+        existing_type = (
+            existing.get("type")
+            or existing.get("attributes", {}).get("type")
+            or ""
+        )
+        desired_type = tool.get("type", "")
+        if existing_type and desired_type and existing_type != desired_type:
+            _delete_tool(tid)
+            s, resp = _post("api/agent_builder/tools", tool)
+            if s in (200, 201):
+                return "recreated"
+            print(f"    ⚠  Recreate (type change {existing_type}→{desired_type}) failed ({s}): {resp}")
+            return "failed"
         body = {k: v for k, v in tool.items() if k not in ("id", "type")}
         s, resp = _put(f"api/agent_builder/tools/{tid}", body)
         if s in (200, 201):

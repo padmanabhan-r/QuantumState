@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Zap } from "lucide-react";
+import { Menu, X, Zap, FlaskConical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ElasticIcon from "@/components/ElasticIcon";
 
@@ -31,12 +31,22 @@ const Navbar = () => {
           </span>
         </Link>
 
-        <Button
-          onClick={() => navigate("/console")}
-          className="hidden md:inline-flex rounded-full bg-gradient-blue text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          Open Console →
-        </Button>
+        <div className="hidden md:flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/sim")}
+            className="rounded-full border-border text-muted-foreground hover:text-foreground gap-1.5"
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            Simulation &amp; Setup
+          </Button>
+          <Button
+            onClick={() => navigate("/console")}
+            className="rounded-full bg-gradient-blue text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            Open Console →
+          </Button>
+        </div>
 
         <button
           className="md:hidden text-foreground"
@@ -54,7 +64,18 @@ const Navbar = () => {
             exit={{ opacity: 0, height: 0 }}
             className="md:hidden bg-background/95 backdrop-blur-xl border-b border-border"
           >
-            <div className="p-4">
+            <div className="p-4 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigate("/sim");
+                  setMobileOpen(false);
+                }}
+                className="w-full rounded-full border-border text-muted-foreground gap-1.5"
+              >
+                <FlaskConical className="h-3.5 w-3.5" />
+                Simulation &amp; Setup
+              </Button>
               <Button
                 onClick={() => {
                   navigate("/console");

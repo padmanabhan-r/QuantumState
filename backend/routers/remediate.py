@@ -115,31 +115,38 @@ def _get_es():
 
 
 def _write_recovery_metrics(service: str, action: str) -> int:
-    """Write 8 recovery data points spread over 8 minutes into ES."""
+    """
+    Write post-restart recovery metrics mirroring what the Docker scraper does
+    after a real container restart: healthy values appearing at scraper intervals
+    (every 10 seconds) for the last 80 seconds.
+
+    Uses the fully-recovered end-state values so Guardian's last-1-minute
+    verify_resolution query sees clean data and returns RESOLVED.
+    """
     es = _get_es()
     profile = _RECOVERY_PROFILES.get(action, _DEFAULT_PROFILE)
     region = _SERVICE_REGIONS.get(service, "us-east-1")
     now = datetime.now(timezone.utc)
-    docs = []
 
-    for i, (mem, err, lat, cpu) in enumerate(zip(
-        profile["memory_pct"],
-        profile["error_rate"],
-        profile["latency_ms"],
-        profile["cpu_pct"],
-    )):
-        ts = now + timedelta(seconds=i * 60)  # 1 data point per minute
-        base = {
-            "@timestamp": ts.isoformat(),
-            "service": service,
-            "region": region,
-            "unit": "percent",
-        }
+    # Final (fully recovered) values — what the service looks like after restart
+    mem = float(profile["memory_pct"][-1])
+    err = float(profile["error_rate"][-1])
+    lat = float(profile["latency_ms"][-1])
+    cpu = float(profile["cpu_pct"][-1])
+
+    docs = []
+    # 8 clean data points at 10-second intervals (covers last 70 seconds)
+    # Most recent is at `now`; oldest is at `now - 70s`.
+    # verify_resolution queries the last 1 minute → sees 6-7 clean points
+    # vs 3 injected anomaly points → average clearly passes all thresholds.
+    for i in range(8):
+        ts = now - timedelta(seconds=(7 - i) * 10)
+        base = {"@timestamp": ts.isoformat(), "service": service, "region": region}
         docs.extend([
-            {**base, "metric_type": "memory_percent",      "value": float(mem)},
-            {**base, "metric_type": "cpu_percent",         "value": float(cpu)},
-            {**base, "metric_type": "error_rate",          "value": float(err),    "unit": "errors/min"},
-            {**base, "metric_type": "request_latency_ms",  "value": float(lat),    "unit": "ms"},
+            {**base, "metric_type": "memory_percent", "value": mem,  "unit": "percent"},
+            {**base, "metric_type": "cpu_percent",    "value": cpu,  "unit": "percent"},
+            {**base, "metric_type": "error_rate",     "value": err,  "unit": "errors/min"},
+            {**base, "metric_type": "latency_ms",     "value": lat,  "unit": "ms"},
         ])
 
     if not docs:

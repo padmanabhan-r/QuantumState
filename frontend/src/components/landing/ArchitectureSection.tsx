@@ -11,6 +11,7 @@ const indices = [
   { label: "Agent Decisions",      desc: "Every agent action logged for compliance and post-mortem" },
   { label: "Remediation Actions",  desc: "Executed fixes with exec_id, risk level, and workflow status" },
   { label: "Remediation Results",  desc: "Guardian verdicts — RESOLVED / ESCALATE with MTTR evidence" },
+  { label: "Runbooks",             desc: "8 remediation procedures — ELSER semantic_text for hybrid retrieval" },
 ];
 
 const ArchitectureSection = () => {
@@ -37,7 +38,7 @@ const ArchitectureSection = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="max-w-3xl mx-auto"
+          className="max-w-6xl mx-auto"
         >
           {/* Top layer — Agent Builder box */}
           <div className="card-surface border-glow-top p-6 rounded-t-lg">
@@ -50,7 +51,7 @@ const ArchitectureSection = () => {
               {liveAgents.map((a) => (
                 <span
                   key={a}
-                  className="px-3 py-1.5 rounded-md bg-muted text-xs font-mono text-foreground border border-border flex items-center gap-1.5"
+                  className="px-4 py-2.5 rounded-md bg-muted text-sm font-mono text-foreground border border-border flex items-center gap-1.5"
                 >
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))]" />
                   {a}
@@ -84,7 +85,7 @@ const ArchitectureSection = () => {
           {/* Connector with downward chevron animation */}
           <div className="flex flex-col items-center">
             <div className="h-3 w-px bg-border" />
-            <p className="text-[10px] font-mono text-muted-foreground px-2">ES|QL + Tool Calls</p>
+            <p className="text-[10px] font-mono text-muted-foreground px-2">ES|QL · ELSER · Tool Calls</p>
             <div className="flex flex-col items-center gap-0.5 py-1">
               {[0, 1, 2].map((n) => (
                 <motion.svg
@@ -114,11 +115,11 @@ const ArchitectureSection = () => {
             <p className="text-xs text-muted-foreground font-mono mb-3 text-center">
               Elasticsearch 9.x
             </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-7 gap-3">
               {indices.map((idx) => (
                 <div
                   key={idx.label}
-                  className="rounded-lg bg-muted border border-border px-4 py-3 flex flex-col gap-1"
+                  className="rounded-lg bg-muted border border-border px-4 py-5 flex flex-col gap-1 min-w-0"
                 >
                   <span className="text-xs font-semibold text-foreground">{idx.label}</span>
                   <span className="text-[11px] text-muted-foreground leading-snug">{idx.desc}</span>

@@ -8,58 +8,47 @@
 
 ## The Problem
 
-Imagine a backend service running in production. Memory usage starts climbing. At first, it looks harmless. Then it crosses a threshold. Latency spikes. Error rates rise. Alerts fire. At 3:00 AM, someone gets paged.
+A memory leak starts at 3am. Your on-call engineer gets paged. They spend 47 minutes correlating dashboards, grepping logs, finding the deploy that caused it, deciding to rollback, executing it, and confirming the service recovered.
 
-An SRE now has to:
-
-- Check dashboards
-- Query logs
-- Correlate recent deployments
-- Identify the root cause
-- Decide on remediation (restart? rollback? scale?)
-- Verify the system has recovered
-
-Even with good observability, this process is manual, repetitive, and time-sensitive. MTTR increases not because data is unavailable — but because humans must interpret and act on it.
-
-The real problem isn't detecting issues. It's turning detection into reliable, automated action.
+QuantumState does the same thing in under 4 minutes — autonomously, with a full audit trail.
 
 ---
 
-## Introducing QuantumState
+## Four agents, one closed loop
 
-Most autonomous incident response systems work the same way: data flows out of your observability platform into an external AI layer, decisions get made somewhere else, and then actions are fired back through webhooks or APIs. You end up with external LLM API keys, custom orchestration middleware, fragile integrations — and your logs and metrics traveling across system boundaries on every incident.
+```
+Elasticsearch (metrics + logs)
+         │
+         ▼
+┌─────────────────────┐
+│  📡 Cassandra        │  Detection — ES|QL anomaly scan, time-to-failure forecast
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  🔬 Archaeologist    │  Investigation — log search, deployment correlation, historical match
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  🩺 Surgeon          │  Remediation — runbook retrieval, triggers Elastic Workflow
+└──────────┬──────────┘
+           │  (autonomous if confidence ≥ 0.8)
+           ▼
+  ⚡ Remediation executes
+  Kibana Case created
+  Recovery metrics written
+           │
+           ▼
+┌─────────────────────┐
+│  🛡️ Guardian         │  Verification — post-fix metric check, MTTR calc, RESOLVED/ESCALATE
+└─────────────────────┘
+           │
+           ▼
+  incidents-quantumstate (closed incident record with MTTR)
+```
 
-QuantumState is built differently.
-
-It is an autonomous SRE agent swarm built entirely on **[Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents)** — Elastic's native framework for building and running AI agents directly inside your Elasticsearch cluster. Detection, investigation, remediation decisions, and verification all happen inside the platform where your data already lives. No data egress. No glue code. No external orchestration.
-
-Four specialized agents run in sequence, each responsible for a distinct phase of the incident lifecycle:
-
-1. **Detect** — Identify anomalies in metrics before they cascade.
-2. **Investigate** — Correlate metrics and logs to determine the root cause.
-3. **Execute** — Trigger a remediation action when confidence is high.
-4. **Verify** — Confirm that system metrics have returned to baseline.
-
-Instead of stopping at alerting, QuantumState carries the incident from detection to verified recovery — automatically, with a full audit trail written back to Elasticsearch at every step.
-
----
-
-## Built on Elastic Agent Builder
-
-**[Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents)** lets you define agents — system prompts, tools, and workflow triggers — natively inside Kibana. The same configuration is fully accessible via the Kibana API for automation and CI/CD. For QuantumState, this means:
-
-It lets you build agents directly inside the Elastic ecosystem — where your logs and metrics already live. Tools, system prompts, and workflow triggers are defined natively in Kibana with a clean UI, and the same configuration is fully accessible via the Kibana API for automation and CI/CD integration.
-
-For QuantumState, this means:
-
-- **No external LLM API keys** — agents run within your Elastic deployment
-- **No orchestration middleware** — ES|QL queries are the agent tools; Elasticsearch is the reasoning substrate
-- **No data egress** — detection, investigation, and remediation decision-making happen inside the cluster where the data lives
-- **Full auditability** — every agent decision, tool call, and workflow trigger is written back to Elasticsearch
-
-<img src="images/Elastic Agent Builder - Home.png" width="720" alt="Elastic Agent Builder Home" />
-
-<img src="images/Elastic Agent Builder - New Agent.png" width="720" alt="Elastic Agent Builder New Agent" />
+All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents) agents** — no external LLM API keys, no external orchestration framework. Everything runs inside your Elastic cluster.
 
 ---
 
@@ -77,15 +66,15 @@ Continuously monitors system metrics using rolling time windows. Instead of rely
 
 ### 🔍 Archaeologist — Investigate
 
-Takes the anomaly context and correlates it with surrounding signals — logs, recent deployment events, and related system activity. Rather than identifying symptoms in isolation, it constructs an evidence chain linking cause to effect.
+Takes the anomaly context and correlates it with surrounding signals — logs, recent deployment events, and historical incidents. Rather than identifying symptoms in isolation, it constructs an evidence chain linking cause to effect. The `find_similar_incidents` tool uses ELSER-powered hybrid search to surface semantically similar past incidents, even when described in completely different language.
 
 **Tools:** `search_error_logs` · `correlate_deployments` · `find_similar_incidents`
 
 ### ⚕️ Surgeon — Resolve
 
-Evaluates possible remediation actions based on the detected anomaly and confidence score. Samples current service state, logs the intended action, then — if confidence ≥ 0.8 — calls `quantumstate.autonomous_remediation` directly to trigger the Kibana Workflow. The Workflow creates an audit Case and queues the action for the MCP Runner. Recovery verification is left to Guardian.
+Evaluates possible remediation actions based on the detected anomaly and confidence score. Samples current service state, retrieves the most relevant runbook from a semantically searchable procedure library, logs the intended action, then — if confidence ≥ 0.8 — calls `quantumstate.autonomous_remediation` directly to trigger the Kibana Workflow. The Workflow creates an audit Case and queues the action for the MCP Runner. Recovery verification is left to Guardian.
 
-**Tools:** `log_remediation_action` · `get_recent_anomaly_metrics` · `verify_resolution` · `quantumstate.autonomous_remediation`
+**Tools:** `get_recent_anomaly_metrics` · `find_relevant_runbook` · `log_remediation_action` · `verify_resolution` · `quantumstate.autonomous_remediation`
 
 ### 🛡️ Guardian — Verify
 
@@ -154,7 +143,17 @@ Then enable both features in **Stack Management → Advanced Settings**:
 
 This is a one-time step. Without it, the workflow deploy and agent setup will fail.
 
-### Step 2: Deploy the Remediation Workflow
+### Step 2: Deploy ELSER (Elastic Learned Sparse Encoder)
+
+QuantumState uses ELSER for semantic search across historical incidents and runbooks. Deploy it once:
+
+```bash
+python elastic-setup/setup_elser.py
+```
+
+This creates the `.elser-2-elasticsearch` inference endpoint on your cluster. If ELSER is already deployed, the script detects this and exits immediately. This step is required before creating agents — two of the tools (`find_similar_incidents` and `find_relevant_runbook`) use Index Search against ELSER-indexed data, and Kibana validates the indices exist at tool creation time.
+
+### Step 3: Deploy the Remediation Workflow
 
 The workflow must exist before agents are created — the Surgeon agent requires its ID.
 
@@ -170,22 +169,31 @@ REMEDIATION_WORKFLOW_ID=workflow-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 Alternatively, create the workflow manually in the Kibana UI by importing `elastic-setup/workflows/remediation-workflow.yaml`.
 
-### Step 3: Create Agents and Tools
+### Step 4: Start the Application and Seed Data
+
+```bash
+./start.sh
+```
+
+Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setup**. This creates all 7 Elasticsearch indices — including `incidents-quantumstate` and `runbooks-quantumstate` with their ELSER `semantic_text` field mappings — and seeds 100 historical incidents and 8 runbooks in a single pass. Both are required before the next step, as Kibana validates those indices exist at tool creation time.
+
+### Step 5: Create Agents and Tools
 
 ```bash
 python elastic-setup/setup_agents.py
 ```
 
-Creates all 12 ES|QL tools and all 4 agents via the Kibana API in a single run. Idempotent — safe to re-run if you update instructions or tools.
+Creates all 13 tools and 4 agents via the Kibana API in a single run. Idempotent — safe to re-run if you update instructions or tools.
 
 ```
-── Step 1: Upsert 12 tools ──────────────────────────────
+── Step 1: Upsert 13 tools ──────────────────────────────
   ✅ detect_memory_leak                    [created]
   ✅ detect_error_spike                    [created]
   ✅ calculate_time_to_failure             [created]
   ✅ search_error_logs                     [created]
   ✅ correlate_deployments                 [created]
   ✅ find_similar_incidents                [created]
+  ✅ find_relevant_runbook                 [created]
   ✅ log_remediation_action                [created]
   ✅ verify_resolution                     [created]
   ✅ get_recent_anomaly_metrics            [created]
@@ -200,7 +208,7 @@ Creates all 12 ES|QL tools and all 4 agents via the Kibana API in a single run. 
   ✅ guardian-verification-agent           [created]
 ```
 
-If you prefer to set up agents manually, every agent ID, system prompt, tool assignment, and ES|QL query is documented in [`agents-definition.md`](agents-definition.md).
+If you prefer to set up agents manually, every agent ID, system prompt, tool assignment, and query is documented in [`agents-definition.md`](agents-definition.md).
 
 > **Verify in Kibana after setup.** Once the script completes, open Kibana → Agent Builder and confirm that all 4 agents appear with the correct tools assigned to each. Use [`agents-definition.md`](agents-definition.md) as the reference — it lists every agent's name, system prompt, and exact tool assignments. If anything looks wrong (missing tool, wrong prompt, incorrect ES|QL), edit it directly in the Kibana UI rather than re-running the script, as the UI gives you immediate feedback on what changed.
 
@@ -211,17 +219,6 @@ python elastic-setup/setup_agents.py --delete
 ```
 
 <img src="images/Elastic Agent Builder - Agents List.png" width="720" alt="Elastic Agent Builder Agents List" />
-
-### Step 4: Start the Application
-
-```bash
-git clone https://github.com/padmanabhan-r/QuantumState
-cd QuantumState
-uv sync
-./start.sh
-```
-
-Launches the FastAPI backend on `http://localhost:8000` and the React frontend on `http://localhost:8080`.
 
 ---
 
@@ -330,7 +327,7 @@ The entire incident — real memory allocation, real container restart, real rec
 | Layer | Technology |
 |---|---|
 | Agent runtime | Elastic Agent Builder (Kibana) |
-| Agent tools | ES\|QL — 12 custom parameterised queries |
+| Agent tools | 11 ES\|QL tools + 2 ELSER Index Search tools + 1 Workflow tool — 13 total |
 | Workflow automation | Elastic Workflows (YAML, deployed via API) |
 | Orchestration | Python FastAPI — SSE streaming |
 | Data store | Elasticsearch Cloud |
@@ -348,8 +345,9 @@ The entire incident — real memory allocation, real container restart, real rec
 | `agent-decisions-quantumstate` | Agent decision audit trail |
 | `remediation-actions-quantumstate` | Action queue polled by the MCP Runner |
 | `remediation-results-quantumstate` | Guardian verdicts and post-fix metric readings |
+| `runbooks-quantumstate` | Semantically searchable remediation procedure library (ELSER) |
 
-All indices are created automatically the first time a document is written to them.
+Indices are created by **Simulation & Setup → Run Setup** (Step 4). The `incidents-quantumstate` and `runbooks-quantumstate` indices require explicit creation with ELSER `semantic_text` field mappings and cannot be auto-created on first write.
 
 ---
 
@@ -373,7 +371,9 @@ quantumstate/
 │       ├── incidents.py        Incident feed + MTTR stats
 │       └── health.py           Live service health
 ├── elastic-setup/
+│   ├── setup_elser.py          ELSER inference endpoint deployment (one-time)
 │   ├── setup_agents.py         One-shot agent + tool provisioning
+│   ├── seed_runbooks.py        Runbook library seeder (8 runbooks)
 │   └── workflows/
 │       ├── remediation-workflow.yaml
 │       └── deploy_workflow.py

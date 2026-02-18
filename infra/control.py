@@ -154,7 +154,9 @@ class ServiceCard(Widget):
         self.remove_class("healthy", "degraded", "offline")
 
         if d is None:
-            self._last_status = None
+            # Do NOT clear _last_status — preserve it so that when the container
+            # comes back after a Docker restart we can still detect the degraded→healthy
+            # transition in _poll (otherwise prev becomes None and the log never fires).
             self.add_class("offline")
             st.update("● offline")
             st.set_classes("svc-status")

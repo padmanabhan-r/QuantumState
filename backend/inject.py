@@ -83,7 +83,7 @@ def inject_memory_leak(es: Elasticsearch):
             ("memory_percent",     memory,     "percent"),
             ("cpu_percent",        cpu,         "percent"),
             ("error_rate",         error_rate,  "errors_per_min"),
-            ("request_latency_ms", latency,     "ms"),
+            ("latency_ms", latency,     "ms"),
             ("requests_per_min",   requests,    "requests_per_min"),
         ]:
             docs.append({
@@ -216,7 +216,7 @@ def inject_deployment_rollback(es: Elasticsearch):
             ("memory_percent",     memory,     "percent"),
             ("cpu_percent",        cpu,         "percent"),
             ("error_rate",         error_rate,  "errors_per_min"),
-            ("request_latency_ms", latency,     "ms"),
+            ("latency_ms", latency,     "ms"),
             ("requests_per_min",   max(0, 850 - error_rate * 20), "requests_per_min"),
         ]:
             docs.append({
@@ -315,7 +315,7 @@ def inject_error_spike(es: Elasticsearch):
             ("memory_percent",     memory,     "percent"),
             ("cpu_percent",        cpu,         "percent"),
             ("error_rate",         error_rate,  "errors_per_min"),
-            ("request_latency_ms", latency,     "ms"),
+            ("latency_ms", latency,     "ms"),
             ("requests_per_min",   max(0, 700 - error_rate * 5), "requests_per_min"),
         ]:
             docs.append({

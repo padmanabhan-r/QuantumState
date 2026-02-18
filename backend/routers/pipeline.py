@@ -1,6 +1,7 @@
 """POST /api/pipeline/run — SSE stream through all 3 agents."""
 import os
 import json
+import threading
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -15,6 +16,10 @@ router = APIRouter(tags=["pipeline"])
 
 _SELF_BASE = os.getenv("SELF_BASE_URL", "http://localhost:8000")
 
+# Prevent concurrent pipeline runs — two simultaneous requests both pass the dedup
+# check before either writes a REMEDIATING incident, producing duplicate incidents.
+_pipeline_lock = threading.Lock()
+
 AGENT_IDS = {
     "cassandra":     "cassandra-detection-agent",
     "archaeologist": "archaeologist-investigation-agent",
@@ -25,7 +30,7 @@ CASSANDRA_PROMPT = """
 You are the first agent in the QuantumState incident pipeline.
 
 Scan all services for anomalies. Run your detection tools:
-1. detect_memory_leak — find services where memory has peaked above 70% in the last 30 minutes. Use MAX or peak values, not averages — a progressive leak shows as a rising trend.
+1. detect_memory_leak — find services where memory has peaked above 65% in the last 5 minutes. Use MAX or peak values, not averages — a progressive leak shows as a rising trend.
 2. detect_error_spike — find services where error rate > 3 errors/min
 3. If an anomaly is found, run calculate_time_to_failure for that service
 
@@ -222,6 +227,21 @@ def _maybe_trigger_remediation(surgeon_output: str, cassandra_output: str,
 
 
 def _pipeline_generator():
+    # Prevent concurrent runs — two simultaneous requests both pass the ES dedup
+    # check before either writes a REMEDIATING incident, producing duplicate incidents.
+    if not _pipeline_lock.acquire(blocking=False):
+        yield _event("pipeline_complete", {
+            "text": "Pipeline already running — please wait for the current run to complete before triggering another."
+        })
+        return
+
+    try:
+        yield from _pipeline_body()
+    finally:
+        _pipeline_lock.release()
+
+
+def _pipeline_body():
     try:
         converse_stream = _get_converse_stream()
     except Exception as exc:
@@ -252,8 +272,13 @@ def _pipeline_generator():
         yield _event("pipeline_complete", {"text": "No anomaly detected — system is healthy. Pipeline stopped."})
         return
 
-    # Dedup: skip only if ALL detected services were already handled in the last 30 min
+    # Dedup: block only if there is an actively REMEDIATING incident for this service
+    # (i.e. the pipeline is mid-flight). RESOLVED / ESCALATE / MONITORING incidents
+    # are closed — a new real incident on the same service must not be suppressed.
+    # A REMEDIATING incident older than 15 min is considered stale (something went
+    # wrong) and is also allowed through.
     from elastic import get_es as _get_es
+    from datetime import datetime as _dt, timezone as _tz
     _KNOWN_SERVICES = ["payment-service", "checkout-service", "auth-service", "inventory-service"]
     _detected_services = [s for s in _KNOWN_SERVICES if s in cassandra_output.lower()]
     if _detected_services:
@@ -269,7 +294,7 @@ def _pipeline_generator():
                             "filter": [
                                 {"term": {"service": _svc}},
                                 {"term": {"pipeline_run": True}},
-                                {"range": {"@timestamp": {"gte": "now-30m"}}},
+                                {"range": {"@timestamp": {"gte": "now-15m"}}},
                             ]
                         }
                     },
@@ -277,23 +302,39 @@ def _pipeline_generator():
                 })
                 if _recent["hits"]["total"]["value"] > 0:
                     _last_doc = _recent["hits"]["hits"][0]["_source"]
-                    _last_ts = _last_doc.get("@timestamp", "")
-                    _resolution = _last_doc.get("resolution_status", "")
-                    # Allow re-run if the previous incident was escalated (unresolved)
-                    if _resolution in ("ESCALATE", "escalate", ""):
-                        _new_services.append(_svc)
+                    _last_ts  = _last_doc.get("@timestamp", "")
+                    _resolution = _last_doc.get("resolution_status", "").upper()
+                    try:
+                        _age = (_dt.now(_tz.utc) - _dt.fromisoformat(
+                            _last_ts.replace("Z", "+00:00")
+                        )).total_seconds() / 60
+                    except Exception:
+                        _age = 0
+
+                    if _resolution == "REMEDIATING" and _age < 15:
+                        # Actively in-flight — block
+                        _handled_services.append(
+                            f"{_svc} (remediating since {_last_ts[:16].replace('T',' ')} UTC)"
+                        )
+                    elif _resolution == "RESOLVED" and _age < 3:
+                        # Brief ghost-protection window: detection window is 5 min,
+                        # stale peak data clears in ~5 min but we protect the first 3
+                        # to avoid junk MONITORING incidents from the previous peak.
+                        _handled_services.append(
+                            f"{_svc} (resolved {_age:.1f}m ago — ghost cooldown)"
+                        )
                     else:
-                        _handled_services.append(f"{_svc} (handled {_last_ts[:16].replace('T',' ')} UTC)")
+                        # ESCALATE / MONITORING / stale REMEDIATING / RESOLVED > 3 min
+                        # — allow new detection
+                        _new_services.append(_svc)
                 else:
                     _new_services.append(_svc)
 
             if not _new_services:
-                # All detected services are in cooldown — skip
                 yield _event("pipeline_complete", {
-                    "text": f"Skipped — all incidents already handled within cooldown: {', '.join(_handled_services)}"
+                    "text": f"Skipped — active remediation already in progress: {', '.join(_handled_services)}"
                 })
                 return
-            # Some services are new — proceed (Surgeon will write for all detected)
         except Exception:
             pass  # if check fails, continue with pipeline
 
@@ -329,20 +370,22 @@ Archaeologist findings:
 Cassandra detection:
 {cassandra_output}
 
-Run these tools in this exact order:
-1. get_recent_anomaly_metrics — confirm the anomaly is still present
+IMPORTANT: If multiple services were flagged as anomalous, remediate ONLY the single most critical one this run — the service with the highest confidence or most severe metric deviation. Set all other detected services to MONITORING. The pipeline will handle them on the next run.
+
+For the ONE most critical service, run these steps:
+1. get_recent_anomaly_metrics — confirm the anomaly is still present for that service
 2. log_remediation_action — record the intended action before triggering anything
 3. If confidence >= 0.8 and anomaly still present: call quantumstate.autonomous_remediation with ALL of these parameters:
    - incident_id: {incident_id}
-   - service: <affected service name>
+   - service: <the service name you are handling>
    - action: <one of: rollback_deployment | restart_service | scale_cache | restart_dependency>
-   - anomaly_type: <anomaly type from context>
-   - root_cause: <root cause from Archaeologist>
+   - anomaly_type: <anomaly type for this service>
+   - root_cause: <root cause from Archaeologist for this service>
    - confidence_score: <your confidence as decimal 0.0-1.0>
    - risk_level: <low | medium | high>
 4. If confidence < 0.8 or anomaly resolved: do NOT call the workflow — set resolution_status to ESCALATE or MONITORING
 
-Return EXACTLY this format (one field per line, dash prefix):
+Return one output block per detected service using EXACTLY this format (one field per line, dash prefix):
 - service: <service name>
 - anomaly_type: <type>
 - root_cause: <description>

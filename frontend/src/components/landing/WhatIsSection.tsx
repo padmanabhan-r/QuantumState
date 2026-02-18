@@ -3,6 +3,7 @@ import AgentPipeline from "./AgentPipeline";
 
 const pills = [
   "🔍 ES|QL anomaly detection",
+  "🧠 ELSER hybrid search",
   "🔗 Evidence chain correlation",
   "⚡ Sub-5-minute MTTR",
   "🐳 MCP Runner · Docker restart",
@@ -32,8 +33,10 @@ const WhatIsSection = () => {
               </p>
               <p>
                 Built entirely on <span className="text-foreground font-semibold">Elastic Agent Builder</span>,
-                every agent uses native ES|QL queries and tool-calling to investigate real data in your
-                Elasticsearch cluster.
+                every agent uses native ES|QL queries, tool-calling, and{" "}
+                <span className="text-foreground font-semibold">ELSER-powered hybrid search</span> to investigate
+                real data in your Elasticsearch cluster — including semantic matching against historical incidents
+                and runbooks.
               </p>
               <p>
                 When confidence reaches ≥ 0.8, Surgeon triggers an{" "}
