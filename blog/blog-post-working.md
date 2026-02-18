@@ -45,7 +45,9 @@ Even if your observability stack is perfect, MTTR stays high because a human sti
 
 QuantumState is an autonomous incident response system I built on top of Elastic's Agent Builder. It uses four specialized AI agents to handle different phases of an incident lifecycle, and every query or decision happens right where the data sits.
 
-The real magic happens in the vector search layer. Standard monitoring relies on rigid thresholds and exact keyword matches. QuantumState takes a smarter approach. It indexes both historical incidents and runbooks using ELSER sparse embeddings. This allows for hybrid search that combines BM25 lexical scoring with actual semantic relevance.
+The differentiator is semantic search. Standard monitoring relies on rigid thresholds and exact keyword matches. QuantumState indexes both historical incidents and runbooks using ELSER sparse embeddings for hybrid search that combines BM25 lexical scoring with semantic relevance.
+
+Unlike dense vector embeddings, ELSER assigns non-zero weights only to semantically significant tokens. Since both ELSER and BM25 operate over Elasticsearch's inverted index, hybrid scoring needs no separate vector store and no external retrieval pipeline.
 
 For example, if a current alert says "JVM heap climbing under load," the system can pull up a past incident labeled "GC pressure from retained connection pool objects." The wording is entirely different, but the root cause is the same. It applies the exact same logic to grab the right runbook procedure based on operational context, rather than relying on hardcoded mappings.
 
@@ -107,21 +109,20 @@ Here is how the data flows at a high level:
 
 > Detection → Root Cause → Remediation → Verification → Closure
 
-The result is a unified control plane where observability, decision making, and execution all operate within a single architecture.
-
 ---
 
 ## Implementation: Building QuantumState
 
-QuantumState includes a React based SRE Incident Control Panel. It interacts directly with Agent Builder via the Kibana API to visualize agent reasoning and monitor outcomes in real time. We also have a separate local infrastructure stack that runs microservices, injects controlled faults, and generates live observability data for the agents to analyze.
+QuantumState includes a React-based SRE Incident Control Panel that talks directly to Agent Builder via the Kibana API to visualize agent reasoning in real time, alongside a local infrastructure stack that injects faults and generates live observability data.
 
-The steps below walk through the full setup, from Elastic Cloud to a live remediation run.
+The steps below walk through the full setup, from Elastic Cloud to a live remediation run. We use the `uv` Python package manager. Ensure you have it installed: [Installation | uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 The full source code is on GitHub: [github.com/padmanabhan-r/QuantumState](https://github.com/padmanabhan-r/QuantumState)
 
 ```bash
 git clone https://github.com/padmanabhan-r/QuantumState.git
 cd QuantumState
+uv sync
 ```
 
 ---
