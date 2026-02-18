@@ -24,10 +24,21 @@ v0.4.0 adds semantic search across historical incidents and runbooks via ELSER, 
 - **Dedup logic — status-driven** — replaced 30-minute time-based dedup with status-driven logic: `REMEDIATING < 15 min` blocks (in-flight); `RESOLVED < 3 min` blocks (ghost cooldown); everything else allows through immediately — consecutive real incidents on the same service are never suppressed
 - **Surgeon — 1 Case per pipeline run** — Surgeon now remediates the single most critical service per run (highest confidence / most severe deviation); all other detected services are set to MONITORING and handled on the next run; eliminates Case spam when multiple anomalies coincide
 - **Cassandra prompt** — updated detection threshold to match live query: 65% peak, 5-minute window (was 70%, 30 minutes)
+- **Cassandra empty output guard** — pipeline now yields a descriptive `pipeline_complete` message and stops early when Cassandra returns empty output (no data in detection window or agent error) instead of hanging indefinitely
 - **Console — Chat panel removed** — "Chat with Agents" tab removed from SRE Console; use Kibana Agent Builder directly for per-agent chat
 - **Architecture section** — all 7 indices displayed in a single row; agent name pills enlarged; connector label updated to `ES|QL · ELSER · Tool Calls`
-- **Landing page** — ELSER hybrid search pill added to WhatIs section; Archaeologist and Surgeon step cards updated with ELSER tags; index counter updated to 7
+- **Landing page** — ELSER hybrid search pill added to WhatIs section; Archaeologist and Surgeon step cards updated with ELSER tags; index counter updated to 7; "Simulation & Setup" nav button added alongside "Open Console"
+- **SimControl** — renamed to "Simulation & Setup"; Sim scenario cards collapsed behind a toggle by default; MCP runner status panel added (shows pending action count + recent action history with auto-poll); in-browser MCP one-shot and auto-run controls for setups without Docker
+- **`approval-requests-quantumstate`** — removed from index registry; replaced by `runbooks-quantumstate` (8 seeded runbooks, ELSER `semantic_text` field)
+- **`incidents-quantumstate` mapping** — added `incident_text` `semantic_text` field; `_write_incident()` now composes a rich natural-language summary at write time so ELSER can embed it immediately; historical seed incidents enriched with `incident_text` for semantic recall
 - **TUI control panel** — fixed recovery log: `_last_status` is now preserved during container offline/restarting period so the `degraded → healthy` transition correctly fires in the log after MCP runner restarts a container
+- **`agents-definition.md`** — Setup Order section added at top with ordered script sequence and note explaining why indices must exist before `setup_agents.py` runs; all tool queries updated to match live configuration
+- **README** — major rewrite: live demo link, MCP Runner architecture section, updated agent descriptions with ELSER context, Cloud trial setup guide; `HOW_IT_WORKS.md` and `data-model.md` removed (content consolidated into README and `agents-definition.md`)
+- **Images** — 6 screenshots added to `images/` covering agent list, pipeline flow, architecture diagram, and web UI
+
+### Added (continued)
+
+- **Synthetic MCP Runner API** (`/api/sim/mcp-runner/status`, `/api/sim/mcp-runner/execute`) — in-process runner in `sim.py` mirrors `infra/mcp-runner/runner.py`; picks up pending remediation actions and writes recovery metrics without requiring Docker; enables full end-to-end demo on Elastic Cloud alone
 
 ### Result
 
