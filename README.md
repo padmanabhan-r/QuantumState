@@ -8,58 +8,47 @@
 
 ## The Problem
 
-Imagine a backend service running in production. Memory usage starts climbing. At first, it looks harmless. Then it crosses a threshold. Latency spikes. Error rates rise. Alerts fire. At 3:00 AM, someone gets paged.
+A memory leak starts at 3am. Your on-call engineer gets paged. They spend 47 minutes correlating dashboards, grepping logs, finding the deploy that caused it, deciding to rollback, executing it, and confirming the service recovered.
 
-An SRE now has to:
-
-- Check dashboards
-- Query logs
-- Correlate recent deployments
-- Identify the root cause
-- Decide on remediation (restart? rollback? scale?)
-- Verify the system has recovered
-
-Even with good observability, this process is manual, repetitive, and time-sensitive. MTTR increases not because data is unavailable — but because humans must interpret and act on it.
-
-The real problem isn't detecting issues. It's turning detection into reliable, automated action.
+QuantumState does the same thing in under 4 minutes — autonomously, with a full audit trail.
 
 ---
 
-## Introducing QuantumState
+## Four agents, one closed loop
 
-Most autonomous incident response systems work the same way: data flows out of your observability platform into an external AI layer, decisions get made somewhere else, and then actions are fired back through webhooks or APIs. You end up with external LLM API keys, custom orchestration middleware, fragile integrations — and your logs and metrics traveling across system boundaries on every incident.
+```
+Elasticsearch (metrics + logs)
+         │
+         ▼
+┌─────────────────────┐
+│  📡 Cassandra        │  Detection — ES|QL anomaly scan, time-to-failure forecast
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  🔬 Archaeologist    │  Investigation — log search, deployment correlation, historical match
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  🩺 Surgeon          │  Remediation — runbook retrieval, triggers Elastic Workflow
+└──────────┬──────────┘
+           │  (autonomous if confidence ≥ 0.8)
+           ▼
+  ⚡ Remediation executes
+  Kibana Case created
+  Recovery metrics written
+           │
+           ▼
+┌─────────────────────┐
+│  🛡️ Guardian         │  Verification — post-fix metric check, MTTR calc, RESOLVED/ESCALATE
+└─────────────────────┘
+           │
+           ▼
+  incidents-quantumstate (closed incident record with MTTR)
+```
 
-QuantumState is built differently.
-
-It is an autonomous SRE agent swarm built entirely on **[Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents)** — Elastic's native framework for building and running AI agents directly inside your Elasticsearch cluster. Detection, investigation, remediation decisions, and verification all happen inside the platform where your data already lives. No data egress. No glue code. No external orchestration.
-
-Four specialized agents run in sequence, each responsible for a distinct phase of the incident lifecycle:
-
-1. **Detect** — Identify anomalies in metrics before they cascade.
-2. **Investigate** — Correlate metrics and logs to determine the root cause.
-3. **Execute** — Trigger a remediation action when confidence is high.
-4. **Verify** — Confirm that system metrics have returned to baseline.
-
-Instead of stopping at alerting, QuantumState carries the incident from detection to verified recovery — automatically, with a full audit trail written back to Elasticsearch at every step.
-
----
-
-## Built on Elastic Agent Builder
-
-**[Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents)** lets you define agents — system prompts, tools, and workflow triggers — natively inside Kibana. The same configuration is fully accessible via the Kibana API for automation and CI/CD. For QuantumState, this means:
-
-It lets you build agents directly inside the Elastic ecosystem — where your logs and metrics already live. Tools, system prompts, and workflow triggers are defined natively in Kibana with a clean UI, and the same configuration is fully accessible via the Kibana API for automation and CI/CD integration.
-
-For QuantumState, this means:
-
-- **No external LLM API keys** — agents run within your Elastic deployment
-- **No orchestration middleware** — ES|QL queries are the agent tools; Elasticsearch is the reasoning substrate
-- **No data egress** — detection, investigation, and remediation decision-making happen inside the cluster where the data lives
-- **Full auditability** — every agent decision, tool call, and workflow trigger is written back to Elasticsearch
-
-<img src="images/Elastic Agent Builder - Home.png" width="720" alt="Elastic Agent Builder Home" />
-
-<img src="images/Elastic Agent Builder - New Agent.png" width="720" alt="Elastic Agent Builder New Agent" />
+All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents) agents** — no external LLM API keys, no external orchestration framework. Everything runs inside your Elastic cluster.
 
 ---
 

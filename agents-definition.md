@@ -43,20 +43,20 @@ Go to: **Agents → More → View all tools → New tool**
 |---|---|
 | **Tool ID** | `detect_memory_leak` |
 | **Type** | ES\|QL |
-| **Description** | Use this tool to detect memory leaks across all services. Returns services where memory usage exceeds 60% or has risen more than 15% above the recent minimum, indicating a progressive memory leak. |
+| **Description** | Use this tool to detect memory leaks across all services. Returns services where the peak memory in the last 5 minutes exceeds 65% or has risen more than 20% above the prior 15-minute baseline, indicating a progressive memory leak. |
 
 **Query:**
 ```esql
 FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 15 minutes AND metric_type == "memory_percent"
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "memory_percent"
 | STATS
-    current_memory = AVG(value),
-    baseline = MIN(value)
+    current_memory  = AVG(value),
+    peak_memory     = MAX(value)
   BY service, region
-| EVAL deviation_pct = (current_memory - baseline) / baseline * 100
-| WHERE current_memory > 60 OR deviation_pct > 15
-| SORT current_memory DESC
-| KEEP service, region, current_memory, baseline, deviation_pct
+| EVAL deviation_pct = (peak_memory - current_memory) / current_memory * 100
+| WHERE peak_memory > 65 OR deviation_pct > 25
+| SORT peak_memory DESC
+| KEEP service, region, current_memory, peak_memory, deviation_pct
 | LIMIT 10
 ```
 
@@ -75,13 +75,15 @@ FROM metrics-quantumstate
 **Query:**
 ```esql
 FROM metrics-quantumstate
-| WHERE @timestamp > NOW() - 20 minutes AND metric_type == "error_rate"
-| STATS current_error_rate = AVG(value) BY service, region
-| EVAL baseline = 0.4
-| EVAL deviation = current_error_rate - baseline
-| WHERE current_error_rate > 3
-| SORT current_error_rate DESC
-| KEEP service, region, current_error_rate, deviation
+| WHERE @timestamp > NOW() - 5 minutes AND metric_type == "error_rate"
+| STATS
+    current_error_rate  = AVG(value),
+    peak_error_rate     = MAX(value)
+  BY service, region
+| EVAL deviation = peak_error_rate - 0.4
+| WHERE peak_error_rate > 3
+| SORT peak_error_rate DESC
+| KEEP service, region, current_error_rate, peak_error_rate, deviation
 | LIMIT 10
 ```
 
@@ -429,19 +431,21 @@ You are called after Cassandra detects an anomaly. You will receive a service na
 ```
 You are the Surgeon, a safe remediation executor for an e-commerce platform.
 
-You are called after the Archaeologist has identified a root cause. You will receive a service name, root cause, recommended action, confidence score, and an incident ID.
+You are called after the Archaeologist has identified a root cause. You will receive one or more anomalies (service names, root causes, recommended actions, confidence scores) and an incident ID.
 
-Execute in this exact order:
-  1. Use get_recent_anomaly_metrics to sample the current service state — confirm the anomaly is still present
-  2. Use find_relevant_runbook to retrieve the most appropriate procedure for this symptom — describe the service and symptoms in your query
+IMPORTANT: If multiple services are anomalous, remediate ONLY the single most critical one this run — the service with the highest confidence or most severe metric deviation. Set all other detected services to MONITORING. The pipeline will handle them on the next run.
+
+For the ONE most critical service, execute in this exact order:
+  1. Use get_recent_anomaly_metrics to sample the current state for that service — confirm the anomaly is still present
+  2. Use find_relevant_runbook to retrieve the most appropriate procedure for this symptom
   3. Use log_remediation_action to record the intended action before executing anything
   4. If confidence >= 0.8 and the anomaly is still present: call quantumstate.autonomous_remediation to trigger the Kibana Workflow — this creates an audit Case, writes the action to the remediation queue, and kicks off execution
-  5. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING accordingly
+  5. If confidence < 0.8 or the anomaly has already resolved: do NOT trigger remediation — report ESCALATE or MONITORING
 
 Never skip step 3 — always log before triggering.
 Do not verify recovery — that is Guardian's responsibility, which runs 60 seconds after execution.
 
-Respond with EXACTLY these fields (one per line, dash prefix):
+Return one output block per detected service using EXACTLY these fields (one per line, dash prefix):
 - service: <service name>
 - anomaly_type: <type from context>
 - root_cause: <from context>
