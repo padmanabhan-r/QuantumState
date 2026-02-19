@@ -283,7 +283,7 @@ docker compose up --build
 | `auth-service` | 8003 | FastAPI service (error spike target) |
 | `inventory-service` | 8004 | FastAPI service |
 | `auth-redis` | 6379 | Redis dependency |
-| `qs-scraper` | - | Polls `/health` every 15s, writes to `metrics-quantumstate` |
+| `qs-scraper` | - | Polls `/health` every 10s, writes to `metrics-quantumstate` |
 | `qs-mcp-runner` | - | Polls `remediation-actions-quantumstate` every 0.5s, runs `docker restart` |
 
 Once up, the scraper immediately starts writing real readings to Elasticsearch. Cassandra has live data to work with.
@@ -308,7 +308,7 @@ curl -X POST http://localhost:8001/simulate/reset
 
 #### What actually happens
 
-When you inject a memory leak, `payment-service` allocates **4MB every 5 seconds** in real Python heap, not simulated. The scraper writes the rising readings to `metrics-quantumstate`. After ~30 seconds, the container starts emitting error logs:
+When you inject a memory leak, `payment-service` allocates **4MB every 5 seconds** in real Python heap, not simulated. The scraper writes the rising readings to `metrics-quantumstate`. The container starts emitting error logs immediately on injection, then continues every 30 seconds as memory climbs:
 
 ```
 ERROR HEAP_PRESSURE: JVM heap elevated: 58%, connection pool under pressure
@@ -318,7 +318,7 @@ CRITICAL OOM_IMMINENT: Out-of-memory condition imminent: 71% heap, GC unable to 
 
 These are the logs Archaeologist finds and builds its evidence chain from.
 
-When Surgeon triggers remediation, the MCP Runner runs `docker restart payment-service`. The container restarts in 2–5 seconds. Memory drops back to baseline. The scraper writes the recovered readings. Guardian sees real recovery metrics.
+When Surgeon triggers remediation, the MCP Runner stops and restarts `payment-service`. The container is back up in 2–5 seconds. Memory drops back to baseline. The scraper writes the recovered readings. Guardian sees real recovery metrics.
 
 The whole loop, from memory climbing to detection, restart, and recovery, is observable in real infrastructure.
 
@@ -355,11 +355,11 @@ Here's the full pipeline running against a real memory leak injected into `payme
 <!-- VIDEO: Full pipeline demo -->
 
 1. Memory leak injected: `payment-service` allocates 4MB every 5s, memory climbs from ~42% to ~74%
-2. Scraper writes real `/health` readings to `metrics-quantumstate` every 15s
+2. Scraper writes real `/health` readings to `metrics-quantumstate` every 10s
 3. Cassandra detects the deviation, calculates ~18 minutes to critical threshold
 4. Archaeologist finds three correlated `HEAP_PRESSURE` and `OOM_IMMINENT` log entries
 5. Surgeon evaluates confidence (0.91) and calls `quantumstate.autonomous_remediation` directly, triggering the Elastic Workflow
-6. The Workflow creates a Kibana Case and writes the action to `remediation-actions-quantumstate`. The MCP Runner picks up the `pending` action within 0.5s and runs `docker restart payment-service`
+6. The Workflow creates a Kibana Case and writes the action to `remediation-actions-quantumstate`. The MCP Runner picks up the `pending` action within 0.5s and stops and restarts `payment-service`
 7. Container restarts in ~3 seconds, memory drops to ~41%
 8. Guardian verifies recovery against real post-restart metrics → **RESOLVED. MTTR: ~3m 48s**
 
@@ -372,7 +372,7 @@ The entire incident, from real memory allocation to container restart and recove
 | Layer | Technology |
 |---|---|
 | Agent runtime | Elastic Agent Builder (Kibana) |
-| Agent tools | 11 ES\|QL tools + 2 ELSER Index Search tools + 1 Workflow tool (13 total) |
+| Agent tools | 10 ES\|QL tools + 2 ELSER Index Search tools + 1 Workflow tool (13 total) |
 | Workflow automation | Elastic Workflows (YAML, deployed via API) |
 | Orchestration | Python FastAPI with SSE streaming |
 | Data store | Elasticsearch Cloud |
