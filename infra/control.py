@@ -13,6 +13,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, Static, Button, Label, Log
 from textual.widget import Widget
 from textual import work
+from textual.reactive import reactive
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,21 @@ Log {
     color: #6b7280;
 }
 
+/* ── Clock bar ── */
+#clock-bar {
+    height: 2;
+    background: #111117;
+    border-bottom: solid #1e2040;
+    align: right middle;
+    padding: 0 2;
+}
+#clock {
+    width: 24;
+    content-align: right middle;
+    color: #e5e7eb;
+    text-style: bold;
+}
+
 /* ── Buttons ── */
 Button { margin: 0 1 0 0; height: 3; min-width: 14; }
 
@@ -179,6 +195,26 @@ class ServiceCard(Widget):
             f"err {err:.1f}/m  lat {lat:.0f}ms"
         )
 
+# ─── Clock widget ────────────────────────────────────────────────────────────
+
+class ClockWidget(Static):
+    time_str = reactive("")
+
+    def on_mount(self):
+        self.set_interval(1, self._tick)
+        self._tick()
+
+    def _tick(self):
+        now = datetime.now()
+        self.time_str = (
+            f"{now.strftime('%H:%M:%S')}\n"
+            f"{now.strftime('%a %d %b %Y')}"
+        )
+
+    def watch_time_str(self, value: str):
+        self.update(value)
+
+
 # ─── App ─────────────────────────────────────────────────────────────────────
 
 class ControlPanel(App):
@@ -198,7 +234,9 @@ class ControlPanel(App):
         self._http = httpx.AsyncClient(timeout=4.0)
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        yield Header(show_clock=False)
+        with Horizontal(id="clock-bar"):
+            yield ClockWidget(id="clock")
 
         with Horizontal(id="main"):
 
