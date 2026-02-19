@@ -12,10 +12,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from inject import inject_memory_leak, inject_deployment_rollback, inject_error_spike
 from elastic import get_es
 
-# Allow importing elastic-setup scripts for runbook seeding
-sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "..", "elastic-setup"))
-import seed_runbooks
-
 router = APIRouter(prefix="/sim", tags=["sim"])
 
 # ── Shared streamer state ──────────────────────────────────────────────────────
@@ -1111,6 +1107,9 @@ def run_setup():
         if es.indices.exists(index="runbooks-quantumstate"):
             rb_count = es.count(index="runbooks-quantumstate").get("count", 0)
             if rb_count == 0:
+                import sys as _sys
+                _sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "..", "elastic-setup"))
+                import seed_runbooks
                 seed_runbooks.seed()
                 runbooks_seeded = len(seed_runbooks.RUNBOOKS)
     except Exception as exc:
