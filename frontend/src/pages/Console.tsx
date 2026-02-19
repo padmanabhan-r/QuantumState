@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Zap, Play, Activity, Shield } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ElasticIcon from "@/components/ElasticIcon";
@@ -15,6 +16,12 @@ const AGENTS = [
 ];
 
 const Console = () => {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="h-screen overflow-hidden flex flex-col">
 
@@ -81,6 +88,16 @@ const Console = () => {
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* Right — live clock */}
+          <div className="ml-auto shrink-0 hidden sm:flex flex-col items-end">
+            <span className="font-mono text-lg sm:text-2xl font-bold text-foreground tabular-nums leading-none">
+              {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground tracking-wider">
+              {now.toLocaleDateString([], { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+            </span>
           </div>
         </div>
       </div>
