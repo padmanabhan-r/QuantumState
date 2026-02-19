@@ -274,6 +274,8 @@ python elastic-setup/setup_agents.py --delete
 
 ## Injecting Real Faults (Recommended)
 
+> **Prerequisites:** Docker must be installed and running before proceeding.
+
 The `infra/` directory contains a complete local microservice environment wired together via Docker Compose. Running this stack means the data Cassandra sees is real: actual memory allocation climbing inside a container, actual error logs being written, and an actual `docker restart` bringing memory back down.
 
 ```bash
