@@ -1,16 +1,39 @@
 # QuantumState
 
-**Autonomous SRE agent swarm built on Elasticsearch. Detects production anomalies, traces root causes, executes remediations, and verifies recovery — fully closed loop, under 4 minutes.**
-
 🌐 [Website](https://www.quantumstate.online) · 🤖 [Agents Definition](agents-definition.md)
 
 ---
 
-## The Problem
+## Inspiration
 
-A memory leak starts at 3am. Your on-call engineer gets paged. They spend 47 minutes correlating dashboards, grepping logs, finding the deploy that caused it, deciding to rollback, executing it, and confirming the service recovered.
+Incident response today is a three-front problem.
 
-QuantumState does the same thing in under 4 minutes — autonomously, with a full audit trail.
+The SRE wakes up at 2 AM to a memory leak. By the time they SSH in, scrape logs, correlate deployment timelines, and find the right runbook, 30 critical minutes are gone.
+
+The AI engineer tasked with automating this hits integration hell. Building agentic workflows on top of Elasticsearch historically meant stitching together LangChain, a vector store, external LLM APIs, and custom orchestration logic into a fragile, high-latency chain.
+
+The security engineer is quietly panicking. Every external AI integration means sensitive production telemetry leaving the cluster for third-party APIs.
+
+We realised the intelligence couldn't sit on top of the data. It had to live inside it.
+
+---
+
+## What It Does
+
+QuantumState is a self-healing, in-cluster incident response system powered by a four-agent SRE swarm:
+
+- **Cassandra (Detection):** Detects anomalies using parameterised ES|QL queries, comparing peak values against a rolling baseline to catch progressive failures within minutes of onset.
+- **Archaeologist (Investigation):** Uses ELSER-powered semantic search to correlate logs and surface similar historical incidents by meaning, not just keywords.
+- **Surgeon (Remediation):** Retrieves the relevant runbook via semantic search and executes remediation through a Kibana Workflow when confidence is high enough.
+- **Guardian (Verification):** Runs post-fix validation to confirm the cluster has stabilised before closing the incident.
+
+---
+
+## How We Built It
+
+The swarm runs entirely inside Elastic using Agent Builder. All 13 tools and 4 agents are provisioned programmatically via the Kibana API, making the full setup reproducible from a single script. Tools are defined as parameterised ES|QL queries and Index Search calls, giving agents native, low-latency access to production telemetry.
+
+A lightweight Python FastAPI backend orchestrates the four-agent pipeline over Server-Sent Events, invoking each agent through the Kibana API's converse endpoint and streaming progress to the frontend in real time. All agent logic and credentials remain inside the cluster. No external LLM APIs. No data exfiltration.
 
 ---
 
@@ -50,13 +73,11 @@ Elasticsearch (metrics + logs)
 
 All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents) agents** — no external LLM API keys, no external orchestration framework. Everything runs inside your Elastic cluster.
 
+<img src="images/Web - The 4 Agents.png" width="720" alt="The 4 Agents" />
+
 ---
 
 ## The Agent Swarm
-
-QuantumState uses four native Elastic Agent Builder agents — each responsible for a single stage of the incident lifecycle, each equipped with purpose-built ES|QL tools.
-
-<img src="images/Web - The 4 Agents.png" width="720" alt="The 4 Agents" />
 
 ### 🔭 Cassandra: Detect
 
@@ -130,9 +151,12 @@ cd QuantumState
 
 ### Step 1: Elastic Cloud
 
-Start with a free [14-day Elastic Cloud trial](https://cloud.elastic.co). Once provisioned, create an API key in Kibana and copy your Cloud ID.
+Start with a free [14-day Elastic Cloud trial](https://cloud.elastic.co). Once provisioned:
 
-Create a `.env` file in the project root:
+1. From the Elastic Cloud home page, find the **Connection details** section on your deployment and click **Create API key** — copy the key once generated.
+2. In the same panel, open the **Endpoints** tab and toggle **Show Cloud ID** — copy that value too.
+
+Create a `.env` file in the project root with both values:
 
 ```env
 ELASTIC_CLOUD_ID=My_Project:base64encodedstring==
