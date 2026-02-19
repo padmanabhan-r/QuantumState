@@ -227,6 +227,9 @@ Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setu
 
 > Runbook seeding happens automatically here because ELSER was deployed in Step 3. If ELSER is not deployed, the two semantic indices will silently fail to create and runbooks will not be seeded.
 
+<img src="/images/Sim Control.png" width="700" alt="Simulation and Setup Control Panel" />
+
+
 ### Step 6: Create Agents and Tools
 
 ```bash
@@ -262,14 +265,14 @@ If you prefer to set up agents manually, every agent ID, system prompt, tool ass
 
 > **Verify in Kibana after setup.** Once the script completes, open Kibana → Agent Builder and confirm that all 4 agents appear with the correct tools assigned to each. Use [`agents-definition.md`](agents-definition.md) as the reference, which lists every agent's name, system prompt, and exact tool assignments. If anything looks wrong (missing tool, wrong prompt, incorrect ES|QL), edit it directly in the Kibana UI rather than re-running the script, as the UI gives you immediate feedback on what changed.
 
+<img src="images/Elastic Agent Builder - Agents List.png" width="720" alt="Elastic Agent Builder Agents List" />
+
+
 To tear everything down:
 
 ```bash
 python elastic-setup/setup_agents.py --delete
 ```
-
-<img src="images/Elastic Agent Builder - Agents List.png" width="720" alt="Elastic Agent Builder Agents List" />
-
 ---
 
 ## Injecting Real Faults (Recommended)
@@ -303,7 +306,13 @@ Use the TUI control panel:
 uv run python infra/control.py
 ```
 
+<img src="/images/TUI - No Error.png" width="700" alt="TUI - Startup" />
+
+
 Press `1` to inject a memory leak into `payment-service`, `2` for an error spike into `auth-service`, `0` to reset everything.
+
+<img src="/images/TUI - Leak.png" width="700" alt="TUI showing active memory leak injection" />
+
 
 Or via curl:
 
@@ -345,32 +354,11 @@ The whole loop, from memory climbing to detection, restart, and recovery, is obs
 
 Click **Run Pipeline** from the Console tab to invoke the full four-agent chain. Each agent's reasoning streams live as it runs. Toggle **Auto Pipeline** to run automatically on a schedule.
 
-<img src="images/Console and TUI.png" width="720" alt="SRE Console and TUI" />
+<img src="/images/Pipeline Run - Resolved.png" width="700" alt="Pipeline Run - Resolved" />
 
-### Simulation & Setup
+### Simulation & Setup (For No Docker Setups)
 
 No Docker? The Simulation & Setup page lets you manage the full environment from the browser: create indices, seed data, inject synthetic anomalies, and run the MCP Runner in-process without any containers.
-
-<img src="images/Sim Control.png" width="720" alt="Simulation and Setup" />
-
----
-
-## Demo
-
-Here's the full pipeline running against a real memory leak injected into `payment-service`:
-
-<!-- VIDEO: Full pipeline demo -->
-
-1. Memory leak injected: `payment-service` allocates 4MB every 5s, memory climbs from ~42% to ~74%
-2. Scraper writes real `/health` readings to `metrics-quantumstate` every 10s
-3. Cassandra detects the deviation, calculates ~18 minutes to critical threshold
-4. Archaeologist finds three correlated `HEAP_PRESSURE` and `OOM_IMMINENT` log entries
-5. Surgeon evaluates confidence (0.91) and calls `quantumstate.autonomous_remediation` directly, triggering the Elastic Workflow
-6. The Workflow creates a Kibana Case and writes the action to `remediation-actions-quantumstate`. The MCP Runner picks up the `pending` action within 0.5s and stops and restarts `payment-service`
-7. Container restarts in ~3 seconds, memory drops to ~41%
-8. Guardian verifies recovery against real post-restart metrics → **RESOLVED. MTTR: ~3m 48s**
-
-The entire incident, from real memory allocation to container restart and recovery, runs end-to-end without any human input.
 
 ---
 
@@ -387,38 +375,6 @@ The entire incident, from real memory allocation to container restart and recove
 
 ---
 
-## Project Structure
+## License
 
-```
-quantumstate/
-├── frontend/                   React + Vite + TypeScript UI
-│   └── src/
-│       ├── pages/              Index, Console, SimControl
-│       └── components/         console/, landing/, ui/
-├── backend/                    FastAPI Python backend
-│   ├── main.py
-│   ├── elastic.py              Shared ES client
-│   ├── orchestrator.py         Agent Builder SSE streaming
-│   └── routers/
-│       ├── pipeline.py         4-agent orchestration
-│       ├── guardian.py         Post-remediation verification
-│       ├── remediate.py        Recovery metric writes
-│       ├── sim.py              Simulation control
-│       ├── incidents.py        Incident feed + MTTR stats
-│       └── health.py           Live service health
-├── elastic-setup/
-│   ├── setup_elser.py          ELSER inference endpoint deployment (one-time)
-│   ├── setup_agents.py         One-shot agent + tool provisioning
-│   ├── seed_runbooks.py        Runbook library seeder (8 runbooks)
-│   └── workflows/
-│       ├── remediation-workflow.yaml
-│       └── deploy_workflow.py
-├── infra/                      Real Docker microservice environment
-│   ├── services/               4 FastAPI services
-│   ├── scraper/                Metrics scraper
-│   ├── mcp-runner/             Real Docker remediation runner
-│   └── docker-compose.yml
-├── agents-definition.md        Full Kibana setup reference
-├── start.sh                    Starts frontend + backend
-└── .env                        Elastic credentials (not committed)
-```
+MIT © 2025 Padmanabhan Rajendrakumar. See [LICENSE](LICENSE) for details.
