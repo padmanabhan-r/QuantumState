@@ -1093,7 +1093,10 @@ def run_setup():
             "pipeline_run": True,
             "guardian_verified": True,
         }})
-    es.bulk(operations=[op for d in inc_docs for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
+    chunk_size = 10
+    for i in range(0, len(inc_docs), chunk_size):
+        chunk = inc_docs[i:i + chunk_size]
+        es.bulk(operations=[op for d in chunk for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
 
     for idx in QUANTUMSTATE_INDICES:
         try:
