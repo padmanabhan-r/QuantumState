@@ -165,8 +165,9 @@ def converse_stream(agent_id: str, message: str):
         # iter_lines returns bytes
         line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
 
-        # SSE keepalive padding lines — skip
+        # SSE keepalive padding lines — forward so Railway proxy doesn't idle-timeout
         if line.startswith(":"):
+            yield {"event": "keepalive", "text": ""}
             continue
 
         if line.startswith("event:"):
