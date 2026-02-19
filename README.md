@@ -165,12 +165,12 @@ ELASTIC_API_KEY=your_api_key_here==
 
 The Kibana URL is derived automatically from the Cloud ID. You'll add `REMEDIATION_WORKFLOW_ID` after the next step.
 
-Then enable both features in **Stack Management → Advanced Settings**:
+Then enable both features in Kibana. In the left pane, go to **Admin and Settings → Advanced Settings**:
 
 - `workflows:ui:enabled` — Elastic Workflows
 - `agentBuilder:experimentalFeatures` — Elastic Agent Builder
 
-This is a one-time step. Without it, the workflow deploy and agent setup will fail.
+After saving, reload the page. This is a one-time step. Without it, the workflow deploy and agent setup will fail.
 
 ### Step 2: Deploy ELSER (Elastic Learned Sparse Encoder)
 
