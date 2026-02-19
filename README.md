@@ -142,13 +142,16 @@ At a high level, the flow is:
 
 ### Prerequisites
 
-- Python 3.12+ · Node.js 18+
+- Python 3.12+ · Node.js 18+ · [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Docker (for the real infrastructure demo)
 - Elastic Cloud deployment
+
+The setup scripts use `uv` for Python dependency management. Install it before proceeding: [Installation | uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```bash
 git clone https://github.com/padmanabhan-r/QuantumState.git
 cd QuantumState
+uv sync
 ```
 
 ### Step 1: Elastic Cloud
