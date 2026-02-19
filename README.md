@@ -33,6 +33,8 @@ The swarm runs entirely inside Elastic using Agent Builder. All 13 tools and 4 a
 
 A lightweight Python FastAPI backend orchestrates the four-agent pipeline over Server-Sent Events, invoking each agent through the Kibana API's converse endpoint and streaming progress to the frontend in real time. All agent logic and credentials remain inside the cluster. No external LLM APIs. No data exfiltration.
 
+A React + TypeScript frontend built with Vite provides a command centre experience. The console displays real-time SSE streaming from each agent as they take turns — Cassandra finding anomalies, Archaeologist digging into logs, Surgeon executing remediation, Guardian verifying the fix. Each agent's output appears as it arrives, styled with its own colour-coded identity, creating the feeling of watching a swarm of experts collaborate on your incident. The UI also includes simulation controls to inject anomalies and trigger the pipeline manually for testing.
+
 ---
 
 ## Four agents, one closed loop
