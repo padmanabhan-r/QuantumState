@@ -188,6 +188,8 @@ QuantumState uses seven specific indices. You don't need to create these manuall
 | `remediation-results-quantumstate` | Guardian verdicts and post-fix metrics |
 | `runbooks-quantumstate` | Semantically searchable remediation procedure library |
 
+> Before running any of the scripts below, make sure your virtual environment is activated: `source .venv/bin/activate`
+
 ### Step 3: Deploy ELSER (Elastic Learned Sparse Encoder)
 
 QuantumState uses ELSER for semantic search across historical incidents and runbooks. Deploy it once:
