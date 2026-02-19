@@ -377,4 +377,4 @@ No Docker? The Simulation & Setup page lets you manage the full environment from
 
 ## License
 
-MIT © 2025 Padmanabhan Rajendrakumar. See [LICENSE](LICENSE) for details.
+MIT © 2026 Padmanabhan Rajendrakumar. See [LICENSE](LICENSE) for details.
