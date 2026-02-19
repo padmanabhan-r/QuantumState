@@ -219,10 +219,13 @@ Alternatively, create the workflow manually in the Kibana UI by importing `elast
 ### Step 5: Start the Application and Seed Data
 
 ```bash
+cd frontend && npm install && cd ..
 ./start.sh
 ```
 
 Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setup**. This creates all 7 Elasticsearch indices, including `incidents-quantumstate` and `runbooks-quantumstate` with their ELSER `semantic_text` field mappings, and seeds 100 historical incidents and 8 runbooks in a single pass. Both are required before the next step, as Kibana validates those indices exist at tool creation time.
+
+> Runbook seeding happens automatically here because ELSER was deployed in Step 3. If ELSER is not deployed, the two semantic indices will silently fail to create and runbooks will not be seeded.
 
 ### Step 6: Create Agents and Tools
 
