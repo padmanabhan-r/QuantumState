@@ -2,7 +2,7 @@
 
 **Autonomous SRE agent swarm built on Elasticsearch. Detects production anomalies, traces root causes, executes remediations, and verifies recovery — fully closed loop, under 4 minutes.**
 
-🌐 [Live Demo](https://www.quantumstate.online) · 🤖 [Agents Definition](agents-definition.md)
+🌐 [Website](https://www.quantumstate.online) · 🤖 [Agents Definition](agents-definition.md)
 
 ---
 
