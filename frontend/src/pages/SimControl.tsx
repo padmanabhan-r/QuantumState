@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical, ChevronDown, BookOpen } from "lucide-react";
+import { ArrowLeft, Zap, Play, Square, Trash2, Database, RefreshCw, FlaskConical, ChevronDown, BookOpen, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ElasticIcon from "@/components/ElasticIcon";
 import { API as API_BASE } from "@/lib/config";
+import CredentialsModal from "@/components/CredentialsModal";
+import { useCredentials } from "@/contexts/CredentialsContext";
 
 const API = `${API_BASE}/sim`;
 
@@ -11,11 +13,6 @@ type IndexInfo = { exists: boolean; count: number };
 type StatusData = { streaming: boolean; indices: Record<string, IndexInfo> };
 type McpAction  = { service: string; action: string; status: string; exec_id?: string; executed_at?: string };
 type McpStatus  = { pending: number; recent: McpAction[] };
-
-async function apiFetch(path: string, method = "GET") {
-  const res = await fetch(path, { method });
-  return res.json();
-}
 
 const SYNTH_SCENARIOS = [
   { key: "memory_leak",  icon: "🧠", title: "Memory Leak",  service: "payment-service", desc: "Memory 55%→89% over 25 min. GC overhead critical." },
@@ -25,6 +22,8 @@ const SYNTH_SCENARIOS = [
 const SHORT = (name: string) => name.replace("-quantumstate", "");
 
 export default function SimControl() {
+  const { credHeaders, isCustom } = useCredentials();
+  const [credsOpen, setCredsOpen] = useState(false);
   const [status, setStatus]       = useState<StatusData | null>(null);
   const [busy, setBusy]           = useState<string | null>(null);
   const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
@@ -33,6 +32,11 @@ export default function SimControl() {
   const [mcpLast, setMcpLast]     = useState<McpAction | null>(null);
   const [simOpen, setSimOpen]     = useState(true);
   const mcpAutoRef                = useRef(false);
+
+  async function apiFetch(path: string, method = "GET") {
+    const res = await fetch(path, { method, headers: credHeaders });
+    return res.json();
+  }
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -122,10 +126,24 @@ export default function SimControl() {
           </span>
         </div>
 
-        <div className="ml-auto font-mono text-xs flex items-center gap-1.5 text-muted-foreground">
-          <ElasticIcon size={13} /> Elastic Agent Builder
+        <div className="ml-auto flex items-center gap-3">
+          <span className="hidden sm:flex font-mono text-xs items-center gap-1.5 text-muted-foreground">
+            <ElasticIcon size={13} /> Elastic Agent Builder
+          </span>
+          <div className="h-3 w-px bg-border hidden sm:block" />
+          <Button
+            variant="outline"
+            size="sm"
+            className={`h-7 gap-1.5 text-xs ${isCustom ? "border-primary/40 text-primary" : "text-muted-foreground"}`}
+            onClick={() => setCredsOpen(true)}
+          >
+            <KeyRound className="h-3 w-3" />
+            {isCustom ? "Custom cluster" : "Connect"}
+          </Button>
         </div>
       </header>
+
+      <CredentialsModal open={credsOpen} onClose={() => setCredsOpen(false)} />
 
       {/* Body */}
       <main className="flex-1 p-6 flex flex-col gap-6">
@@ -384,7 +402,7 @@ export default function SimControl() {
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap rounded-xl px-8 py-4 text-base font-semibold shadow-2xl border backdrop-blur-sm"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap rounded-xl px-8 py-4 text-base font-semibold shadow-2xl border backdrop-blur-sm"
           style={toast.ok ? {
             background: "hsl(160 84% 39% / 0.15)", borderColor: "hsl(160 84% 39% / 0.4)", color: "hsl(160 84% 39%)",
           } : {

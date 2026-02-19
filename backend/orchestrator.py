@@ -12,6 +12,7 @@ import requests
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
+from creds import get_creds
 
 load_dotenv()
 
@@ -19,13 +20,8 @@ API_KEY     = os.getenv("ELASTIC_API_KEY", "")
 ELASTIC_URL = os.getenv("ELASTIC_URL", "").rstrip("/")
 
 
-def _derive_kibana_url() -> str:
-    explicit = os.getenv("KIBANA_URL", "").strip().rstrip("/")
-    if explicit:
-        return explicit
-    cloud_id = os.getenv("ELASTIC_CLOUD_ID", "")
-    if not cloud_id:
-        return ""
+def _kibana_url_from_cloud_id(cloud_id: str) -> str:
+    """Decode a Kibana hostname from an Elastic Cloud ID string."""
     try:
         import base64
         _, encoded = cloud_id.split(":", 1)
@@ -38,6 +34,16 @@ def _derive_kibana_url() -> str:
     except Exception:
         pass
     return ""
+
+
+def _derive_kibana_url() -> str:
+    explicit = os.getenv("KIBANA_URL", "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    cloud_id = os.getenv("ELASTIC_CLOUD_ID", "")
+    if not cloud_id:
+        return ""
+    return _kibana_url_from_cloud_id(cloud_id)
 
 
 KIBANA_URL = _derive_kibana_url()
@@ -139,9 +145,16 @@ def converse_stream(agent_id: str, message: str):
         {"event": "message_complete","text": "<full response>"}
         {"event": "error",           "text": "<error message>"}
     """
-    url = f"{KIBANA_URL}/api/agent_builder/converse/async"
+    override   = get_creds()
+    api_key    = override.get("api_key") or API_KEY
+    kibana_url = (
+        override.get("kibana_url")
+        or (override.get("cloud_id") and _kibana_url_from_cloud_id(override["cloud_id"]))
+        or KIBANA_URL
+    )
+    url = f"{kibana_url}/api/agent_builder/converse/async"
     headers = {
-        "Authorization": f"ApiKey {API_KEY}",
+        "Authorization": f"ApiKey {api_key}",
         "kbn-xsrf":      "true",
         "Content-Type":  "application/json",
         "Accept":        "text/event-stream",

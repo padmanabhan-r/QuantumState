@@ -949,6 +949,236 @@ PAST_INCIDENTS = [
     },
 ]
 
+RUNBOOKS = [
+    {
+        "runbook_id": "rb-001",
+        "title": "Payment service memory leak — rollback after recent deployment",
+        "service": "payment-service",
+        "action_type": "rollback_deployment",
+        "risk_level": "medium",
+        "estimated_time_minutes": 3,
+        "steps": (
+            "1. Confirm deployment timestamp (should be within last 90 min).\n"
+            "2. Check git log for changes to TransactionCache or connection pool config.\n"
+            "3. Execute rollback to previous stable version.\n"
+            "4. Wait 2 minutes for memory to stabilise below 65%.\n"
+            "5. Verify error rate returns below 2.5/min.\n"
+            "6. Document regression in post-mortem with commit hash."
+        ),
+        "runbook_text": (
+            "Apply when payment-service shows steadily climbing memory usage after a recent deployment. "
+            "Symptoms include: JVM heap growing without plateau, GC pause times increasing, "
+            "TransactionCache or JDBC connection pool log warnings, memory utilization above 70% "
+            "and rising at more than 1% per minute. "
+            "If a deployment occurred within the last 90 minutes, rollback is the correct first action — "
+            "do not attempt a service restart, as the leak will recur immediately on the same code. "
+            "Rollback is safe when you have a known-good previous version. "
+            "Risk is medium because rollback causes a brief request spike during restart. "
+            "Estimated resolution: 3 minutes from trigger to memory stabilisation."
+        ),
+    },
+    {
+        "runbook_id": "rb-002",
+        "title": "Service memory exhaustion — restart when no recent deployment",
+        "service": "any",
+        "action_type": "restart_service",
+        "risk_level": "low",
+        "estimated_time_minutes": 1,
+        "steps": (
+            "1. Confirm no deployment in the last 2 hours.\n"
+            "2. Capture heap dump or memory profile if possible.\n"
+            "3. Restart the service container.\n"
+            "4. Monitor memory for 5 minutes post-restart to confirm stabilisation.\n"
+            "5. If memory climbs again within 30 minutes, escalate to engineering — "
+            "likely a latent leak that needs a code fix."
+        ),
+        "runbook_text": (
+            "Apply when any service shows high memory utilization or heap exhaustion "
+            "without a recent deployment to blame. "
+            "Symptoms: container approaching OOM kill threshold, RSS growing beyond configured limits, "
+            "out of memory errors in application logs, GC thrashing, process memory growing past 85%. "
+            "When there is no recent deployment, a service restart clears the leaked objects and "
+            "restores normal operation temporarily. This is a low-risk, fast action. "
+            "However, if memory starts climbing again after restart, the leak is latent in the existing "
+            "codebase and requires engineering intervention. "
+            "Estimated resolution: under 1 minute."
+        ),
+    },
+    {
+        "runbook_id": "rb-003",
+        "title": "Auth service error spike — Redis cache offline, restart dependency",
+        "service": "auth-service",
+        "action_type": "restart_dependency",
+        "risk_level": "low",
+        "estimated_time_minutes": 2,
+        "steps": (
+            "1. Confirm Redis is unreachable (check CACHE_OFFLINE error code in logs).\n"
+            "2. Check Redis container health: docker ps | grep auth-redis.\n"
+            "3. Restart auth-redis container.\n"
+            "4. Wait for Redis to accept connections (typically 15–20 seconds).\n"
+            "5. Confirm auth-service error rate drops below 2/min within 60 seconds.\n"
+            "6. If Redis restarts but errors persist, check auth-service cache reconnection logic."
+        ),
+        "runbook_text": (
+            "Apply when auth-service shows a sudden sharp error rate spike with log errors "
+            "indicating cache unavailability or session lookup failures. "
+            "Symptoms: CACHE_OFFLINE error code appearing in auth logs, "
+            "error rate jumping from normal baseline to 15–30 errors per minute, "
+            "session validation timeouts, users unable to authenticate, "
+            "auth-service falling back to slow database lookups causing latency spikes. "
+            "Root cause is typically Redis cache eviction, OOM kill, or network partition. "
+            "Restarting the Redis dependency is the correct first action — do not restart auth-service itself, "
+            "as it is functioning correctly but degraded by the missing cache layer. "
+            "Risk is low as Redis restart is non-destructive to auth-service state. "
+            "Estimated resolution: 2 minutes."
+        ),
+    },
+    {
+        "runbook_id": "rb-004",
+        "title": "Error spike after deployment — rollback to previous version",
+        "service": "any",
+        "action_type": "rollback_deployment",
+        "risk_level": "medium",
+        "estimated_time_minutes": 3,
+        "steps": (
+            "1. Identify the deployment that correlates with error spike onset.\n"
+            "2. Confirm error rate exceeded 3x normal baseline after deploy timestamp.\n"
+            "3. Check logs for specific exception type (NPE, serialisation error, connection failure).\n"
+            "4. Execute rollback to the previous stable version.\n"
+            "5. Confirm error rate returns to baseline within 2 minutes.\n"
+            "6. File a bug with the specific exception stack trace from the failed deployment."
+        ),
+        "runbook_text": (
+            "Apply when any service shows a sudden error rate spike that correlates directly "
+            "with a recent deployment event. "
+            "Symptoms: error rate rising sharply within 5 minutes of a deployment, "
+            "application exceptions in logs such as NullPointerException, serialisation failures, "
+            "missing configuration errors, or contract violations, "
+            "error rate 3x or more above the normal baseline, "
+            "errors affecting the same code path that was changed in the deployment. "
+            "A deployment-correlated error spike almost always means code regression. "
+            "Rollback is the correct action — faster and safer than attempting a hotfix under pressure. "
+            "Risk is medium due to the brief outage window during rollback. "
+            "Estimated resolution: 3 minutes."
+        ),
+    },
+    {
+        "runbook_id": "rb-005",
+        "title": "Checkout service serialisation or null pointer errors after version bump",
+        "service": "checkout-service",
+        "action_type": "rollback_deployment",
+        "risk_level": "medium",
+        "estimated_time_minutes": 3,
+        "steps": (
+            "1. Confirm error logs show NullPointerException, ClassCastException, or serialisation errors.\n"
+            "2. Check which checkout-service version was deployed and when.\n"
+            "3. Look for changes to cart model, order serialiser, or payment integration in the diff.\n"
+            "4. Rollback to the previous stable version.\n"
+            "5. Verify checkout flow is healthy: error rate < 1/min, latency < 200ms.\n"
+            "6. Fix the null pointer or serialisation issue in a feature branch with tests before re-deploying."
+        ),
+        "runbook_text": (
+            "Apply when checkout-service shows exceptions related to cart serialisation, "
+            "null pointer dereferences, or type casting failures after a version bump. "
+            "Symptoms: NullPointerException or ClassCastException in checkout logs, "
+            "order processing failures, cart data corrupted or missing fields, "
+            "payment integration errors due to unexpected data shape, "
+            "error rate spiking immediately following a deployment of a new checkout version. "
+            "These errors indicate a code regression in the cart or order processing pipeline. "
+            "Rollback is safe and fast. The bug should be reproduced in a test environment before re-deploying. "
+            "Estimated resolution: 3 minutes."
+        ),
+    },
+    {
+        "runbook_id": "rb-006",
+        "title": "Memory pressure under high traffic — scale cache layer",
+        "service": "any",
+        "action_type": "scale_cache",
+        "risk_level": "medium",
+        "estimated_time_minutes": 5,
+        "steps": (
+            "1. Confirm memory pressure correlates with traffic spike (check requests_per_min metric).\n"
+            "2. Check cache hit ratio in logs — if below 70%, cache is undersized.\n"
+            "3. Increase cache allocation: scale cache layer horizontally or increase max memory.\n"
+            "4. If using Redis, increase maxmemory config and restart Redis with new setting.\n"
+            "5. Monitor memory over next 10 minutes — should stabilise as cache absorbs reads.\n"
+            "6. Consider adding a circuit breaker to prevent cache bypass under high load."
+        ),
+        "runbook_text": (
+            "Apply when a service shows memory pressure that correlates with increased request volume "
+            "rather than a deployment or code change. "
+            "Symptoms: memory utilization rising during peak traffic windows, "
+            "cache eviction rate high (objects being evicted before natural TTL), "
+            "cache hit ratio dropping below 70%, "
+            "requests falling through to the database causing latency spikes, "
+            "memory growing as the application allocates more heap to handle uncached requests. "
+            "This pattern indicates the cache is undersized for current traffic load — "
+            "not a memory leak. Scaling the cache layer reduces heap pressure by keeping hot data "
+            "in the cache rather than re-allocating it on every request. "
+            "Risk is medium — scaling cache requires a brief restart of the cache process. "
+            "Estimated resolution: 5 minutes."
+        ),
+    },
+    {
+        "runbook_id": "rb-007",
+        "title": "JVM heap pressure and GC thrashing — restart service",
+        "service": "any",
+        "action_type": "restart_service",
+        "risk_level": "low",
+        "estimated_time_minutes": 1,
+        "steps": (
+            "1. Confirm GC pause times are elevated (look for GC log messages or latency spikes).\n"
+            "2. Confirm no recent deployment.\n"
+            "3. Restart the service — this clears the heap and stops GC thrashing immediately.\n"
+            "4. If GC thrashing recurs, consider tuning heap size (Xmx) or switching GC algorithm.\n"
+            "5. Capture GC logs before restart if possible for offline analysis."
+        ),
+        "runbook_text": (
+            "Apply when a JVM-based service shows increasing GC pause times, "
+            "stop-the-world collection events, or throughput degradation due to heap pressure. "
+            "Symptoms: GC pause times above 500ms, old generation heap filling to capacity, "
+            "request latency spikes that correlate with GC events, "
+            "application throughput dropping as GC competes for CPU, "
+            "heap dump analysis showing long-lived objects accumulating in old generation. "
+            "GC thrashing typically indicates that the heap is too small for the current working set, "
+            "or that objects are not being reclaimed due to lingering references. "
+            "A service restart clears the heap immediately. "
+            "If the issue recurs, investigate object retention patterns and consider increasing heap allocation. "
+            "Risk is low. Estimated resolution: under 1 minute."
+        ),
+    },
+    {
+        "runbook_id": "rb-008",
+        "title": "Error rate spike with unclear root cause — restart dependency",
+        "service": "any",
+        "action_type": "restart_dependency",
+        "risk_level": "medium",
+        "estimated_time_minutes": 2,
+        "steps": (
+            "1. Check logs for errors pointing to a specific downstream dependency (cache, DB, queue).\n"
+            "2. Check connectivity to each dependency.\n"
+            "3. Restart the dependency that appears degraded or unresponsive.\n"
+            "4. If no specific dependency is implicated, escalate to engineering.\n"
+            "5. Monitor error rate for 2 minutes after restart to confirm recovery."
+        ),
+        "runbook_text": (
+            "Apply when a service shows an error rate spike without a clear deployment trigger "
+            "and without obvious code regression in logs. "
+            "Symptoms: sudden increase in error rate without a correlated deployment, "
+            "timeout errors pointing to downstream services, "
+            "connection refused or connection reset errors in application logs, "
+            "dependency health checks failing, "
+            "errors resolving on their own briefly then returning — suggesting a flapping dependency. "
+            "When the root cause points to a downstream dependency (cache, message queue, database replica), "
+            "restarting that dependency is the correct first action. "
+            "If after restart errors persist or no dependency is clearly at fault, escalate — "
+            "this may require infrastructure investigation beyond automated remediation. "
+            "Risk is medium as dependency restart may briefly affect all services using it. "
+            "Estimated resolution: 2 minutes."
+        ),
+    },
+]
+
 
 def _stream_loop(es, stop_event: threading.Event):
     while not stop_event.is_set():
@@ -994,7 +1224,7 @@ def get_status():
 def run_setup():
     from elasticsearch import helpers
 
-    es = get_es()
+    es = get_es(timeout=60)
 
     def clamp(v, lo, hi): return max(lo, min(hi, v))
 
@@ -1093,7 +1323,10 @@ def run_setup():
             "pipeline_run": True,
             "guardian_verified": True,
         }})
-    es.bulk(operations=[op for d in inc_docs for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
+    chunk_size = 10
+    for i in range(0, len(inc_docs), chunk_size):
+        chunk = inc_docs[i:i + chunk_size]
+        es.bulk(operations=[op for d in chunk for op in [{"index": {"_index": d["_index"]}}, d["_source"]]])
 
     for idx in QUANTUMSTATE_INDICES:
         try:
@@ -1101,17 +1334,14 @@ def run_setup():
         except Exception:
             pass  # index may not exist if ELSER wasn't deployed
 
-    # Seed runbooks if the index exists but is empty
+    # Seed runbooks if the index is empty (index already created above via QUANTUMSTATE_INDICES)
     runbooks_seeded = 0
     try:
-        if es.indices.exists(index="runbooks-quantumstate"):
-            rb_count = es.count(index="runbooks-quantumstate").get("count", 0)
-            if rb_count == 0:
-                import sys as _sys
-                _sys.path.insert(0, os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "..", "elastic-setup"))
-                import seed_runbooks
-                seed_runbooks.seed()
-                runbooks_seeded = len(seed_runbooks.RUNBOOKS)
+        rb_count = es.count(index="runbooks-quantumstate").get("count", 0)
+        if rb_count == 0:
+            for rb in RUNBOOKS:
+                es.index(index="runbooks-quantumstate", id=rb["runbook_id"], document=rb)
+            runbooks_seeded = len(RUNBOOKS)
     except Exception as exc:
         print(f"[sim/setup] Warning: could not seed runbooks: {exc}")
 

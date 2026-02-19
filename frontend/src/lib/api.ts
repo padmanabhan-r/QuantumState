@@ -47,31 +47,32 @@ export interface ChatResponse {
   agent: string;
 }
 
-export async function fetchIncidents(): Promise<IncidentsResponse> {
-  const res = await fetch(`${API_BASE}/incidents`);
+export async function fetchIncidents(credHeaders: Record<string, string> = {}): Promise<IncidentsResponse> {
+  const res = await fetch(`${API_BASE}/incidents`, { headers: credHeaders });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function fetchIncidentStats(): Promise<IncidentStats> {
-  const res = await fetch(`${API_BASE}/incidents/stats`);
+export async function fetchIncidentStats(credHeaders: Record<string, string> = {}): Promise<IncidentStats> {
+  const res = await fetch(`${API_BASE}/incidents/stats`, { headers: credHeaders });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function fetchHealth(): Promise<HealthResponse> {
-  const res = await fetch(`${API_BASE}/health`);
+export async function fetchHealth(credHeaders: Record<string, string> = {}): Promise<HealthResponse> {
+  const res = await fetch(`${API_BASE}/health`, { headers: credHeaders });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 export async function sendChat(
   agentId: string,
-  message: string
+  message: string,
+  credHeaders: Record<string, string> = {}
 ): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...credHeaders },
     body: JSON.stringify({ agent_id: agentId, message }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

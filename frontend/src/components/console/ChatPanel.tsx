@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2, MessageSquare, User } from "lucide-react";
 import { sendChat } from "@/lib/api";
+import { useCredentials } from "@/contexts/CredentialsContext";
 
 interface Message {
   role: "user" | "agent";
@@ -23,6 +24,7 @@ function agentCfg(id: string) {
 }
 
 export default function ChatPanel() {
+  const { credHeaders } = useCredentials();
   const [agentId, setAgentId]   = useState("cassandra");
   const [input, setInput]       = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -41,7 +43,7 @@ export default function ChatPanel() {
     setLoading(true);
 
     try {
-      const res = await sendChat(agentId, text);
+      const res = await sendChat(agentId, text, credHeaders);
       if (res.error) {
         const errText = typeof res.error === "string" ? res.error : (res.error as { message?: string })?.message ?? JSON.stringify(res.error);
         setMessages((m) => [...m, { role: "agent", content: errText, agent: agentId, error: true }]);

@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Zap, Play, Activity, Shield } from "lucide-react";
+import { ArrowLeft, Zap, Play, Activity, Shield, KeyRound } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ElasticIcon from "@/components/ElasticIcon";
+import { Button } from "@/components/ui/button";
+import CredentialsModal from "@/components/CredentialsModal";
+import { useCredentials } from "@/contexts/CredentialsContext";
 import IncidentFeed from "@/components/console/IncidentFeed";
 import PipelinePanel from "@/components/console/PipelinePanel";
 import ActionsPanel from "@/components/console/ActionsPanel";
@@ -17,6 +20,9 @@ const AGENTS = [
 
 const Console = () => {
   const [now, setNow] = useState(new Date());
+  const [credsOpen, setCredsOpen] = useState(false);
+  const { isCustom } = useCredentials();
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
@@ -50,12 +56,23 @@ const Console = () => {
             <ElasticIcon size={13} /> Elastic Agent Builder
           </span>
           <div className="h-3 w-px bg-border hidden sm:block" />
+          <Button
+            variant="outline"
+            size="sm"
+            className={`h-7 gap-1.5 text-xs ${isCustom ? "border-primary/40 text-primary" : "text-muted-foreground"}`}
+            onClick={() => setCredsOpen(true)}
+          >
+            <KeyRound className="h-3 w-3" />
+            {isCustom ? "Custom cluster" : "Connect"}
+          </Button>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="h-2 w-2 rounded-full bg-[hsl(var(--success))] shadow-[0_0_8px_hsl(var(--success))] animate-pulse" />
             Live
           </span>
         </div>
       </header>
+
+      <CredentialsModal open={credsOpen} onClose={() => setCredsOpen(false)} />
 
       {/* ── Hero banner ── */}
       <div className="hero-grid-bg border-b border-border px-4 sm:px-6 py-2 sm:py-4 shrink-0">

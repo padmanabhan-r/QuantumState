@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Zap, RefreshCw, CheckCircle2, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { API } from "@/lib/config";
+import { useCredentials } from "@/contexts/CredentialsContext";
 
 interface RemediationAction {
   "@timestamp": string;
@@ -129,6 +130,7 @@ function ActionCard({ action }: { action: RemediationAction }) {
 }
 
 export default function ActionsPanel() {
+  const { credHeaders } = useCredentials();
   const [actions, setActions] = useState<RemediationAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
@@ -136,7 +138,7 @@ export default function ActionsPanel() {
 
   async function fetchActions() {
     try {
-      const res = await fetch(`${API}/actions`);
+      const res = await fetch(`${API}/actions`, { headers: credHeaders });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setActions(data.actions ?? []);

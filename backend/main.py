@@ -3,9 +3,10 @@ QuantumState SRE Console — FastAPI backend
 """
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from creds import set_creds
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -21,6 +22,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="QuantumState SRE Console API", version="2.0.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def credential_override_middleware(request: Request, call_next):
+    """Read per-request credential headers and store in ContextVar.
+    Falls back to server env vars if headers are absent."""
+    creds = {k: v for k, v in {
+        "cloud_id":  request.headers.get("X-Elastic-Cloud-Id"),
+        "api_key":   request.headers.get("X-Elastic-Api-Key"),
+        "kibana_url": request.headers.get("X-Kibana-Url"),
+    }.items() if v}
+    set_creds(creds)
+    return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,

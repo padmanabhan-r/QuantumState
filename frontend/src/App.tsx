@@ -7,10 +7,12 @@ import Index from "./pages/Index";
 import Console from "./pages/Console";
 import SimControl from "./pages/SimControl";
 import NotFound from "./pages/NotFound";
+import { CredentialsProvider } from "./contexts/CredentialsContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
+  <CredentialsProvider>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -25,6 +27,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </CredentialsProvider>
 );
 
 export default App;
