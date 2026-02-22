@@ -68,7 +68,7 @@ const HeroSection = () => {
             transition={{ duration: 0.7, delay: 0.6 }}
             className="flex flex-wrap justify-center gap-4"
           >
-            <StatChip icon={<TrendingDown className="h-4 w-4 text-success" />} label="47 min → ~4 min MTTR" accent="success" />
+            <StatChip icon={<TrendingDown className="h-4 w-4 text-success" />} label="60 min → ~4 min MTTR" accent="success" />
             <StatChip icon={<Sparkles className="h-4 w-4 text-primary" />} label="4 AI Agents — Live Now" accent="primary" />
             <StatChip icon={<ElasticIcon size={16} />} label="Elastic Agent Builder" accent="warning" />
           </motion.div>

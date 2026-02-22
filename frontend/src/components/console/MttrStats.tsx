@@ -10,7 +10,7 @@ function fmt(seconds: number): string {
 
 const STATS = (data: ReturnType<typeof useIncidentStats>["data"], isError: boolean) => {
   const automated = data?.avg_mttr_seconds ?? 0;
-  const manual    = data?.manual_baseline_seconds ?? 2820;
+  const manual    = data?.manual_baseline_seconds ?? 3600;
   const reduction = automated > 0 && manual > 0 ? Math.round(((manual - automated) / manual) * 100) : 0;
 
   return [
@@ -40,7 +40,7 @@ const STATS = (data: ReturnType<typeof useIncidentStats>["data"], isError: boole
       icon: <TrendingDown className="h-4 w-4" />,
       label: "Time Saved",
       value: reduction > 0 ? `${reduction}%` : "—",
-      sub: "vs 47 min manual baseline",
+      sub: "vs 60 min manual baseline",
       accent: "hsl(38 92% 50%)",
       glow:   "hsl(38 92% 50% / 0.15)",
     },

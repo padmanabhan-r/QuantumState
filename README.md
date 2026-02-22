@@ -6,7 +6,7 @@
 
 Incident response today is a three-front problem.
 
-The SRE wakes up at 2 AM to a memory leak. By the time they SSH in, scrape logs, correlate deployment timelines, and find the right runbook, 30 critical minutes are gone.
+The SRE wakes up at 2 AM to a memory leak. By the time they SSH in, scrape logs, correlate deployment timelines, and find the right runbook, 60 critical minutes are gone.
 
 The AI engineer tasked with automating this hits integration hell. Building agentic workflows on top of Elasticsearch historically meant stitching together LangChain, a vector store, external LLM APIs, and custom orchestration logic into a fragile, high-latency chain.
 
