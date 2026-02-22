@@ -39,7 +39,7 @@ export default function PipelinePanel() {
 
   // Auto-run state
   const [mode, setMode]           = useState<"manual" | "auto">("manual");
-  const [interval, setInterval_]  = useState(60);
+  const [interval, setInterval_]  = useState(180);
   const [autoActive, setAutoActive] = useState(false);
   const [countdown, setCountdown]  = useState(0);
 
