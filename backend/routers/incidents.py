@@ -66,13 +66,13 @@ def get_incident_stats():
             "incidents_today": total,
             "resolved_today": resolved,
             "avg_mttr_seconds": round(avg_mttr),
-            "manual_baseline_seconds": 2820,  # 47 min manual baseline
+            "manual_baseline_seconds": 3600,  # 47 min manual baseline
         }
     except Exception as exc:
         return {
             "incidents_today": 0,
             "resolved_today": 0,
             "avg_mttr_seconds": 0,
-            "manual_baseline_seconds": 2820,
+            "manual_baseline_seconds": 3600,
             "error": str(exc),
         }

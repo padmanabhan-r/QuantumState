@@ -255,6 +255,9 @@ def _pipeline_body():
     cassandra_output = ""
     archaeologist_output = ""
 
+    from datetime import datetime as _dt2, timezone as _tz2
+    pipeline_started_at = _dt2.now(_tz2.utc).isoformat()
+
     yield _event("agent_start", {"agent": "cassandra", "label": "Cassandra — Detection"})
     full_response = ""
     for evt in converse_stream(AGENT_IDS["cassandra"], CASSANDRA_PROMPT):
@@ -462,7 +465,7 @@ Return one output block per detected service using EXACTLY this format (one fiel
         written_ids = []
         for section in sections:
             doc = {
-                "@timestamp":         datetime.now(timezone.utc).isoformat(),
+                "@timestamp":         pipeline_started_at,
                 "pipeline_run":       True,
                 "service":            section.get("service", ""),
                 "anomaly_type":       section.get("anomaly_type", ""),
