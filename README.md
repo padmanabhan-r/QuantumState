@@ -1,12 +1,25 @@
-# QuantumState
+# QuantumState : A Self-Healing Incident Response System
 
-🌐 [Website](https://www.quantumstate.online) 
+## Contents
+
+- [Problem](#problem)
+- [What It Does](#what-it-does)
+- [How It's Built](#how-its-built)
+- [The Agent Swarm](#the-agent-swarm)
+- [The MCP Runner](#the-mcp-runner)
+- [Architecture](#architecture)
+- [Implementation](#implementation)
+  - [Injecting Real Faults](#injecting-real-faults)
+  - [Running the Pipeline](#running-the-pipeline)
+- [Tech Stack](#tech-stack)
+- [License](#license)
 
 ---
+## Problem
 
 At 3 AM, an SRE wakes up to a slow climb on a memory graph. Incident response is still manual — the anomaly has to be noticed, investigated, traced to a cause, matched to a runbook, and remediated while the clock runs. By the time the first fix lands, 60 minutes of production impact have already passed.
 
-<p align="center"><img src="images/The 3AM Problem.png" width="580" alt="The 3AM Problem" /></p>
+<p align="center"><img src="images/The 3AM Problem.png" width="480" alt="The 3AM Problem" /></p>
 
 Automating that process with AI means building on top of the observability stack — and that's integration hell. LangChain, an external vector store, third-party LLM API keys, a custom orchestration layer, stitched together into something more fragile and harder to operate than the manual process it was supposed to replace. And every AI-assisted call ships sensitive production telemetry to an endpoint outside the cluster.
 
@@ -20,8 +33,6 @@ The intelligence sits on top of the data, far from where decisions need to happe
 
 QuantumState is an autonomous incident response system built on Elastic's Agent Builder. When a fault occurs, four specialised AI agents handle the complete lifecycle — detection through verification — without a human in the loop.
 
-<p align="center"><img src="images/The Agent Swarm.png" width="580" alt="The Agent Swarm" /></p>
-
 The loop runs like this:
 
 1. **Detect:** Catch metric anomalies before they escalate
@@ -33,9 +44,19 @@ No external orchestration. No third-party APIs. No data leaving the cluster.
 
 ---
 
+## How It's Built
+
+The swarm runs entirely inside Elastic using Agent Builder. Each agent is equipped with purpose-built tools: parameterised ES|QL queries, ELSER Index Search calls, and Kibana Workflow triggers, giving them native, low-latency access to production telemetry without leaving the cluster.
+
+The four-agent pipeline is orchestrated through the Kibana API over Server-Sent Events, streaming each agent's output to the frontend in real time. All agent logic and credentials remain inside the cluster. No external LLM APIs. No data exfiltration.
+
+A React + TypeScript frontend provides a command centre experience, streaming each agent's output live as the pipeline runs. A local control panel simulates a production-like environment running entirely in Docker, with real services, a metrics scraper, and fault injection controls — built for demo and testing purposes. The full stack is also deployed at [quantumstate.online](https://www.quantumstate.online), with the backend on Railway and the frontend on Vercel, or wired to a local production-like environment.
+
+---
+
 ## The Agent Swarm
 
-<p align="center"><img src="images/Web - The 4 Agents.png" width="580" alt="The 4 Agents" /></p>
+<p align="center"><img src="images/The Agent Swarm.png" width="580" alt="The Agent Swarm" /></p>
 
 ### Cassandra — Detect
 
@@ -64,6 +85,8 @@ Closes the loop. After remediation, he validates whether system health has retur
 ---
 
 ## The MCP Runner
+
+<p align="center"><img src="images/MCP Runner .webp" width="720" alt="MCP Runner" /></p>
 
 Surgeon doesn't directly touch infrastructure — that's the MCP Runner's job. It polls `remediation-actions-quantumstate` every 500ms for pending actions. When it finds one, it executes the fix — a `docker restart`, a service rollback — marks it `executed`, and moves on. No webhooks, no external orchestration engines, no separate automation platform. Elasticsearch is the coordination layer and message bus.
 
@@ -103,9 +126,11 @@ Elasticsearch (metrics + logs)
 
 All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents) agents** — no external LLM API keys, no external orchestration framework. Everything runs inside your Elastic cluster.
 
+<p align="center"><img src="images/agents-in-elastic.gif" width="1280" alt="Agents in Elastic" /></p>
+
 ---
 
-## Setup
+## Implementation
 
 ### Prerequisites
 
@@ -236,9 +261,7 @@ To tear everything down:
 python elastic-setup/setup_agents.py --delete
 ```
 
----
-
-## Injecting Real Faults
+### Injecting Real Faults
 
 > **Prerequisites:** Docker must be installed and running.
 
@@ -301,9 +324,7 @@ These are the logs Archaeologist finds and builds its evidence chain from. When 
 4. Wait ~60–90 seconds for the fault to appear in the metrics index
 5. Open `http://localhost:8080` → Console → **Run Pipeline**
 
----
-
-## Running the Pipeline
+### Running the Pipeline
 
 Click **Run Pipeline** from the Console tab to invoke the full four-agent chain. Each agent's reasoning streams live as it runs. Toggle **Auto Pipeline** to run automatically on a schedule.
 
@@ -311,7 +332,7 @@ Click **Run Pipeline** from the Console tab to invoke the full four-agent chain.
 
 <p align="center"><img src="images/Pipeline Run - Resolved.png" width="580" alt="Pipeline Run - Resolved" /></p>
 
-### Simulation & Setup (No Docker)
+#### Simulation & Setup (No Docker)
 
 No Docker? The Simulation & Setup page lets you manage the full environment from the browser: create indices, seed data, inject synthetic anomalies, and run the MCP Runner in-process without any containers.
 
