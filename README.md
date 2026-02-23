@@ -132,6 +132,8 @@ All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs
 
 ## Implementation
 
+If you'd like to follow along with the video guide as you work through this section: [QuantumState - Implementation & Setup Guide](https://www.youtube.com/watch?v=B_hGlWtx6ZI)
+
 ### Prerequisites
 
 - Python 3.12+ · Node.js 18+ · [uv](https://docs.astral.sh/uv/getting-started/installation/)
