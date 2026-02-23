@@ -9,8 +9,6 @@
 - [The MCP Runner](#the-mcp-runner)
 - [Architecture](#architecture)
 - [Implementation](#implementation)
-  - [Injecting Real Faults](#injecting-real-faults)
-  - [Running the Pipeline](#running-the-pipeline)
 - [Tech Stack](#tech-stack)
 - [License](#license)
 
@@ -263,7 +261,7 @@ To tear everything down:
 python elastic-setup/setup_agents.py --delete
 ```
 
-### Injecting Real Faults
+### Step 7: Injecting Real Faults
 
 > **Prerequisites:** Docker must be installed and running.
 
@@ -326,7 +324,7 @@ These are the logs Archaeologist finds and builds its evidence chain from. When 
 4. Wait ~60–90 seconds for the fault to appear in the metrics index
 5. Open `http://localhost:8080` → Console → **Run Pipeline**
 
-### Running the Pipeline
+### Step 8: Running the Pipeline
 
 Click **Run Pipeline** from the Console tab to invoke the full four-agent chain. Each agent's reasoning streams live as it runs. Toggle **Auto Pipeline** to run automatically on a schedule.
 
