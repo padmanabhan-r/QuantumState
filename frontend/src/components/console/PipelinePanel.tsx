@@ -39,7 +39,7 @@ export default function PipelinePanel() {
 
   // Auto-run state
   const [mode, setMode]           = useState<"manual" | "auto">("manual");
-  const [interval, setInterval_]  = useState(180);
+  const [interval, setInterval_]  = useState(900);
   const [autoActive, setAutoActive] = useState(false);
   const [countdown, setCountdown]  = useState(0);
 
@@ -333,7 +333,7 @@ export default function PipelinePanel() {
                   style={{ border: "1px solid hsl(var(--border))", background: "hsl(222 47% 4%)" }}
                 >
                   <button
-                    onClick={() => !autoActive && setInterval_((v) => Math.max(10, v - 10))}
+                    onClick={() => !autoActive && setInterval_((v) => Math.max(900, v - 60))}
                     disabled={autoActive}
                     className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed select-none"
                   >
@@ -343,7 +343,7 @@ export default function PipelinePanel() {
                     {interval}
                   </span>
                   <button
-                    onClick={() => !autoActive && setInterval_((v) => Math.min(3600, v + 10))}
+                    onClick={() => !autoActive && setInterval_((v) => Math.min(3600, v + 60))}
                     disabled={autoActive}
                     className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed select-none"
                   >
