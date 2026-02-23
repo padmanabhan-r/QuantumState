@@ -10,7 +10,7 @@ At 3 AM, an SRE wakes up to a slow climb on a memory graph. Incident response is
 
 Automating that process with AI means building on top of the observability stack — and that's integration hell. LangChain, an external vector store, third-party LLM API keys, a custom orchestration layer, stitched together into something more fragile and harder to operate than the manual process it was supposed to replace. And every AI-assisted call ships sensitive production telemetry to an endpoint outside the cluster.
 
-<p align="center"><img src="images/Integration Hell.png" width="580" alt="Integration Hell" /></p>
+<p align="center"><img src="images/Integration Hell.png" width="380" alt="Integration Hell" /></p>
 
 The intelligence sits on top of the data, far from where decisions need to happen. QuantumState is a demonstration of what becomes possible when you build that intelligence natively inside Elastic — using Agent Builder, ES|QL, ELSER, and Kibana Workflows, without any of the integration overhead.
 
