@@ -319,12 +319,12 @@ def _pipeline_body():
                         _handled_services.append(
                             f"{_svc} (remediating since {_last_ts[:16].replace('T',' ')} UTC)"
                         )
-                    elif _resolution == "RESOLVED" and _age < 3:
-                        # Brief ghost-protection window: detection window is 5 min,
-                        # stale peak data clears in ~5 min but we protect the first 3
-                        # to avoid junk MONITORING incidents from the previous peak.
+                    elif _resolution == "RESOLVED" and _age < 15:
+                        # Cooldown matches the auto-pipeline minimum (15 min).
+                        # @timestamp is pipeline start time, not Guardian completion,
+                        # so the effective post-resolution window is 15 - pipeline_duration.
                         _handled_services.append(
-                            f"{_svc} (resolved {_age:.1f}m ago — ghost cooldown)"
+                            f"{_svc} (resolved {_age:.1f}m ago — cooldown)"
                         )
                     else:
                         # ESCALATE / MONITORING / stale REMEDIATING / RESOLVED > 3 min
