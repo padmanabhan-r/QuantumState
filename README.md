@@ -1,24 +1,26 @@
 # QuantumState
 
-🌐 [Website](https://www.quantumstate.online) · 🤖 [Agents Definition](agents-definition.md)
+🌐 [Website](https://www.quantumstate.online) 
 
 ---
 
-Incident response today is a three-front problem.
+At 3 AM, an SRE wakes up to a slow climb on a memory graph. Incident response is still manual — the anomaly has to be noticed, investigated, traced to a cause, matched to a runbook, and remediated while the clock runs. By the time the first fix lands, 60 minutes of production impact have already passed.
 
-The SRE wakes up at 2 AM to a memory leak. By the time they SSH in, scrape logs, correlate deployment timelines, and find the right runbook, 60 critical minutes are gone.
+<p align="center"><img src="images/The 3AM Problem.png" width="580" alt="The 3AM Problem" /></p>
 
-The AI engineer tasked with automating this hits integration hell. Building agentic workflows on top of Elasticsearch historically meant stitching together LangChain, a vector store, external LLM APIs, and custom orchestration logic into a fragile, high-latency chain.
+Automating that process with AI means building on top of the observability stack — and that's integration hell. LangChain, an external vector store, third-party LLM API keys, a custom orchestration layer, stitched together into something more fragile and harder to operate than the manual process it was supposed to replace. And every AI-assisted call ships sensitive production telemetry to an endpoint outside the cluster.
 
-The security engineer is quietly panicking. Every external AI integration means sensitive production telemetry leaving the cluster for third-party APIs.
+<p align="center"><img src="images/Integration Hell.png" width="580" alt="Integration Hell" /></p>
 
-The answer was to stop treating Elasticsearch as a data layer and start treating it as the execution environment. The intelligence couldn't sit on top of the data. It had to live inside it.
+The intelligence sits on top of the data, far from where decisions need to happen. QuantumState is a demonstration of what becomes possible when you build that intelligence natively inside Elastic — using Agent Builder, ES|QL, ELSER, and Kibana Workflows, without any of the integration overhead.
 
 ---
 
 ## What It Does
 
-QuantumState is an autonomous incident response system built on Elastic's Agent Builder. Four specialised AI agents handle different phases of an incident lifecycle, and every query and decision happens right where the data sits.
+QuantumState is an autonomous incident response system built on Elastic's Agent Builder. When a fault occurs, four specialised AI agents handle the complete lifecycle — detection through verification — without a human in the loop.
+
+<p align="center"><img src="images/The Agent Swarm.png" width="580" alt="The Agent Swarm" /></p>
 
 The loop runs like this:
 
@@ -27,81 +29,35 @@ The loop runs like this:
 3. **Execute:** Retrieve the relevant runbook and trigger a fix when confidence is high enough
 4. **Verify:** Confirm system health is back to baseline before closing the incident
 
----
-
-## How It's Built
-
-The swarm runs entirely inside Elastic using Agent Builder. Each agent is equipped with purpose-built tools: parameterised ES|QL queries, ELSER Index Search calls, and Kibana Workflow triggers, giving them native, low-latency access to production telemetry without leaving the cluster.
-
-The four-agent pipeline is orchestrated through the Kibana API over Server-Sent Events, streaming each agent's output to the frontend in real time. All agent logic and credentials remain inside the cluster. No external LLM APIs. No data exfiltration.
-
-A React + TypeScript frontend provides a command centre experience, streaming each agent's output live as the pipeline runs. A local control panel simulates a production-like environment running entirely in Docker, with real services, a metrics scraper, and fault injection controls — built for demo and testing purposes. The full stack is also deployed at [quantumstate.online](https://www.quantumstate.online), with the backend on Railway and the frontend on Vercel, or wired to a local production-like environment.
-
----
-
-## Four agents, one closed loop
-
-```
-Elasticsearch (metrics + logs)
-         │
-         ▼
-┌─────────────────────┐
-│  📡 Cassandra        │  Detection: ES|QL anomaly scan, time-to-failure forecast
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  🔬 Archaeologist    │  Investigation: log search, deployment correlation, historical match
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  🩺 Surgeon          │  Remediation: runbook retrieval, triggers Elastic Workflow
-└──────────┬──────────┘
-           │  (autonomous if confidence ≥ 0.8)
-           ▼
-  ⚡ Remediation executes
-  Kibana Case created
-  Recovery metrics written
-           │
-           ▼
-┌─────────────────────┐
-│  🛡️ Guardian         │  Verification: post-fix metric check, MTTR calc, RESOLVED/ESCALATE
-└─────────────────────┘
-           │
-           ▼
-  incidents-quantumstate (closed incident record with MTTR)
-```
-
-All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents) agents** with no external LLM API keys and no external orchestration framework. Everything runs inside your Elastic cluster.
-
-<img src="images/Web - The 4 Agents.png" width="720" alt="The 4 Agents" />
+No external orchestration. No third-party APIs. No data leaving the cluster.
 
 ---
 
 ## The Agent Swarm
 
-### 🔭 Cassandra: Detect
+<p align="center"><img src="images/Web - The 4 Agents.png" width="580" alt="The 4 Agents" /></p>
 
-Continuously monitors system metrics using rolling time windows. Instead of relying on static thresholds, it compares current behavior against a dynamic baseline to detect gradual degradation (memory leaks, error spikes, latency drift) before they escalate into critical failures. Returns anomaly type, confidence score, and time-to-critical estimate.
+### Cassandra — Detect
+
+Continuously monitors system metrics using rolling time windows. Instead of relying on static thresholds, she compares current behaviour against a dynamic baseline to catch gradual degradation — memory leaks, error spikes, latency drift — before they escalate. Returns anomaly type, confidence score, and time-to-critical estimate, then hands everything off to Archaeologist.
 
 **Tools:** `detect_memory_leak` · `detect_error_spike` · `calculate_time_to_failure`
 
-### 🔍 Archaeologist: Investigate
+### Archaeologist — Investigate
 
-Takes the anomaly context and correlates it with surrounding signals: logs, recent deployment events, and historical incidents. Rather than identifying symptoms in isolation, it constructs an evidence chain linking cause to effect. The `find_similar_incidents` tool uses ELSER-powered hybrid search to surface semantically similar past incidents, even when described in completely different language.
+Takes the anomaly context and correlates it with surrounding signals: error logs, recent deployment events, and historical incidents. The `find_similar_incidents` tool uses ELSER-powered semantic search to surface past incidents with the same fingerprint — even when described in completely different language. Constructs a full evidence chain and hands it to Surgeon.
 
 **Tools:** `search_error_logs` · `correlate_deployments` · `find_similar_incidents`
 
-### ⚕️ Surgeon: Resolve
+### Surgeon — Resolve
 
-Evaluates possible remediation actions based on the detected anomaly and confidence score. Samples current service state, retrieves the most relevant runbook from a semantically searchable procedure library, logs the intended action, then, if confidence is 0.8 or above, calls `quantumstate.autonomous_remediation` directly to trigger the Kibana Workflow. The Workflow creates an audit Case and queues the action for the MCP Runner. Recovery verification is left to Guardian.
+Evaluates possible remediation actions based on the anomaly and confidence score. Retrieves the most relevant runbook semantically, samples current service state, and — if confidence clears 0.8 — fires. He calls the Kibana Workflow tool directly. The Workflow creates an audit Case and writes the action to Elasticsearch with `status: pending`. The MCP Runner picks it up from there.
 
 **Tools:** `get_recent_anomaly_metrics` · `find_relevant_runbook` · `log_remediation_action` · `verify_resolution` · `quantumstate.autonomous_remediation`
 
-### 🛡️ Guardian: Verify
+### Guardian — Verify
 
-Closes the loop. After remediation, it validates whether system health has returned to baseline, checking memory, error rate, and latency thresholds. Returns `RESOLVED` or `ESCALATE` with a calculated MTTR. Only when recovery is confirmed does the incident lifecycle complete.
+Closes the loop. After remediation, he validates whether system health has returned to baseline — checking memory, error rate, and latency thresholds. Returns `RESOLVED` with a calculated MTTR, or `ESCALATE` with full context attached for a human operator.
 
 **Tools:** `get_recent_anomaly_metrics` · `verify_resolution` · `get_incident_record` · `get_remediation_action`
 
@@ -109,32 +65,43 @@ Closes the loop. After remediation, it validates whether system health has retur
 
 ## The MCP Runner
 
-The MCP Runner is the component that physically executes remediation. It acts as a lightweight sidecar that continuously polls for approved remediation actions written by the agents to Elasticsearch.
-
-When an action is marked ready for execution, the MCP Runner performs the required infrastructure operation: restarting a container, triggering a rollback, or scaling a cache dependency.
-
-- No webhooks
-- No external orchestration engines
-- No separate automation platform
-
-Elasticsearch acts as the coordination layer and message bus. The MCP Runner bridges agent decisions with real-world execution, keeping the architecture simple, auditable, and fully controlled within the Elastic ecosystem.
+Surgeon doesn't directly touch infrastructure — that's the MCP Runner's job. It polls `remediation-actions-quantumstate` every 500ms for pending actions. When it finds one, it executes the fix — a `docker restart`, a service rollback — marks it `executed`, and moves on. No webhooks, no external orchestration engines, no separate automation platform. Elasticsearch is the coordination layer and message bus.
 
 ---
 
-## Architecture & Pipeline Flow
+## Architecture
 
-At a high level, the flow is:
+<p align="center"><img src="images/architecture-flow.gif" width="580" alt="Architecture Flow" /></p>
 
-1. Metrics and logs stream continuously into Elasticsearch.
-2. The Agent Pipeline orchestrates the four specialized agents.
-3. When remediation is approved (confidence ≥ 0.8), an Elastic Workflow is triggered.
-4. The Workflow records the action and maintains an auditable trail.
-5. The MCP Runner executes the infrastructure action.
-6. Guardian verifies recovery and closes the incident.
+```
+Elasticsearch (metrics + logs)
+         │
+         ▼
+┌─────────────────────┐
+│  Cassandra           │  Detection: ES|QL anomaly scan, time-to-failure forecast
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Archaeologist       │  Investigation: log search, deployment correlation, ELSER incident match
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Surgeon             │  Remediation: ELSER runbook retrieval, triggers Elastic Workflow
+└──────────┬──────────┘
+           │  (autonomous if confidence ≥ 0.8)
+           ▼
+  Remediation executes via MCP Runner
+  Kibana Case created · Recovery metrics written
+           │
+           ▼
+┌─────────────────────┐
+│  Guardian            │  Verification: post-fix metric check, MTTR calc, RESOLVED/ESCALATE
+└─────────────────────┘
+```
 
-> Detection → Root Cause → Remediation → Verification → Closure
-
-<img src="images/architecture-flow.svg" width="720" alt="Architecture Flow" />
+All four agents are **native [Elastic Agent Builder](https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/agent-builder-agents) agents** — no external LLM API keys, no external orchestration framework. Everything runs inside your Elastic cluster.
 
 ---
 
@@ -146,8 +113,6 @@ At a high level, the flow is:
 - Docker (for the real infrastructure demo)
 - Elastic Cloud deployment
 
-The setup scripts use `uv` for Python dependency management. Install it before proceeding: [Installation | uv](https://docs.astral.sh/uv/getting-started/installation/)
-
 ```bash
 git clone https://github.com/padmanabhan-r/QuantumState.git
 cd QuantumState
@@ -158,10 +123,10 @@ uv sync
 
 Start with a free [14-day Elastic Cloud trial](https://cloud.elastic.co). Once provisioned:
 
-1. From the Elastic Cloud home page, find the **Connection details** section on your deployment and click **Create API key**. Copy the key once generated.
+1. From the Elastic Cloud home page, find **Connection details** and click **Create API key**. Copy the key once generated.
 2. In the same panel, open the **Endpoints** tab and toggle **Show Cloud ID**. Copy that value too.
 
-Create a `.env` file in the project root with both values:
+Create a `.env` file in the project root:
 
 ```env
 ELASTIC_CLOUD_ID=My_Project:base64encodedstring==
@@ -170,16 +135,16 @@ ELASTIC_API_KEY=your_api_key_here==
 
 The Kibana URL is derived automatically from the Cloud ID. You'll add `REMEDIATION_WORKFLOW_ID` after the next step.
 
-Then enable both features in Kibana. In the left pane, go to **Admin and Settings → Advanced Settings**:
+Then enable both features in Kibana under **Admin and Settings → Advanced Settings**:
 
 - `workflows:ui:enabled` (Elastic Workflows)
 - `agentBuilder:experimentalFeatures` (Elastic Agent Builder)
 
-After saving, reload the page. This is a one-time step. Without it, the workflow deploy and agent setup will fail.
+After saving, reload the page. This is a one-time step — without it, the workflow deploy and agent setup will fail.
 
 ### Step 2: The Indices
 
-QuantumState uses seven specific indices. You don't need to create these manually. They are all created automatically when you run the setup in the next steps. This is just an overview of what gets created and why:
+QuantumState uses seven indices, all created automatically during setup:
 
 | Index | Purpose |
 |---|---|
@@ -191,9 +156,9 @@ QuantumState uses seven specific indices. You don't need to create these manuall
 | `remediation-results-quantumstate` | Guardian verdicts and post-fix metrics |
 | `runbooks-quantumstate` | Semantically searchable remediation procedure library |
 
-> Before running any of the scripts below, make sure your virtual environment is activated: `source .venv/bin/activate`
+> Before running any scripts: `source .venv/bin/activate`
 
-### Step 3: Deploy ELSER (Elastic Learned Sparse Encoder)
+### Step 3: Deploy ELSER
 
 QuantumState uses ELSER for semantic search across historical incidents and runbooks. Deploy it once:
 
@@ -201,23 +166,21 @@ QuantumState uses ELSER for semantic search across historical incidents and runb
 python elastic-setup/setup_elser.py
 ```
 
-This creates the `.elser-2-elasticsearch` inference endpoint on your cluster. If ELSER is already deployed, the script detects this and exits immediately. This step is required before creating agents, as two of the tools (`find_similar_incidents` and `find_relevant_runbook`) use Index Search against ELSER-indexed data, and Kibana validates the indices exist at tool creation time.
+This creates the `.elser-2-elasticsearch` inference endpoint on your cluster. If ELSER is already deployed, the script detects this and exits. This step is required before creating agents — two tools (`find_similar_incidents` and `find_relevant_runbook`) use Index Search against ELSER-indexed data, and Kibana validates those indices exist at tool creation time.
 
 ### Step 4: Deploy the Remediation Workflow
-
-The workflow must exist before agents are created, as the Surgeon agent requires its ID.
 
 ```bash
 python elastic-setup/workflows/deploy_workflow.py
 ```
 
-The script deploys `elastic-setup/workflows/remediation-workflow.yaml` to Kibana and prints the created workflow ID. Add it to `.env`:
+The script deploys `elastic-setup/workflows/remediation-workflow.yaml` and prints the created workflow ID. Add it to `.env`:
 
 ```env
 REMEDIATION_WORKFLOW_ID=workflow-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
-Alternatively, create the workflow manually in the Kibana UI by importing `elastic-setup/workflows/remediation-workflow.yaml`.
+Alternatively, create the workflow manually in Kibana by importing `elastic-setup/workflows/remediation-workflow.yaml`.
 
 ### Step 5: Start the Application and Seed Data
 
@@ -226,12 +189,9 @@ cd frontend && npm install && cd ..
 ./start.sh
 ```
 
-Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setup**. This creates all 7 Elasticsearch indices, including `incidents-quantumstate` and `runbooks-quantumstate` with their ELSER `semantic_text` field mappings, and seeds 100 historical incidents and 8 runbooks in a single pass. Both are required before the next step, as Kibana validates those indices exist at tool creation time.
+Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setup**. This creates all 7 indices with their ELSER `semantic_text` field mappings and seeds 100 historical incidents and 8 runbooks in a single pass.
 
-> Runbook seeding happens automatically here because ELSER was deployed in Step 3. If ELSER is not deployed, the two semantic indices will silently fail to create and runbooks will not be seeded.
-
-<img src="/images/Sim Control.png" width="700" alt="Simulation and Setup Control Panel" />
-
+<p align="center"><img src="images/Sim Control.png" width="580" alt="Simulation and Setup Control Panel" /></p>
 
 ### Step 6: Create Agents and Tools
 
@@ -239,7 +199,7 @@ Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setu
 python elastic-setup/setup_agents.py
 ```
 
-Creates all 13 tools and 4 agents via the Kibana API in a single run. Idempotent, so safe to re-run if you update instructions or tools.
+Creates all 13 tools and 4 agents via the Kibana API. Idempotent — safe to re-run if you update instructions or tools.
 
 ```
 ── Step 1: Upsert 13 tools ──────────────────────────────
@@ -264,23 +224,23 @@ Creates all 13 tools and 4 agents via the Kibana API in a single run. Idempotent
   ✅ guardian-verification-agent           [created]
 ```
 
+<p align="center"><img src="images/Elastic Agent Builder - Agents List.png" width="580" alt="Elastic Agent Builder Agents List" /></p>
+
 If you prefer to set up agents manually, every agent ID, system prompt, tool assignment, and query is documented in [`agents-definition.md`](agents-definition.md).
 
-> **Verify in Kibana after setup.** Once the script completes, open Kibana → Agent Builder and confirm that all 4 agents appear with the correct tools assigned to each. Use [`agents-definition.md`](agents-definition.md) as the reference, which lists every agent's name, system prompt, and exact tool assignments. If anything looks wrong (missing tool, wrong prompt, incorrect ES|QL), edit it directly in the Kibana UI rather than re-running the script, as the UI gives you immediate feedback on what changed.
-
-<img src="images/Elastic Agent Builder - Agents List.png" width="720" alt="Elastic Agent Builder Agents List" />
-
+> **Verify in Kibana after setup.** Open Kibana → Agent Builder and confirm all 4 agents appear with the correct tools assigned. Use [`agents-definition.md`](agents-definition.md) as the reference.
 
 To tear everything down:
 
 ```bash
 python elastic-setup/setup_agents.py --delete
 ```
+
 ---
 
-## Injecting Real Faults (Recommended)
+## Injecting Real Faults
 
-> **Prerequisites:** Docker must be installed and running before proceeding.
+> **Prerequisites:** Docker must be installed and running.
 
 The `infra/` directory contains a complete local microservice environment wired together via Docker Compose. Running this stack means the data Cassandra sees is real: actual memory allocation climbing inside a container, actual error logs being written, and an actual `docker restart` bringing memory back down.
 
@@ -296,10 +256,8 @@ docker compose up --build
 | `auth-service` | 8003 | FastAPI service (error spike target) |
 | `inventory-service` | 8004 | FastAPI service |
 | `auth-redis` | 6379 | Redis dependency |
-| `qs-scraper` | - | Polls `/health` every 10s, writes to `metrics-quantumstate` |
-| `qs-mcp-runner` | - | Polls `remediation-actions-quantumstate` every 0.5s, runs `docker restart` |
-
-Once up, the scraper immediately starts writing real readings to Elasticsearch. Cassandra has live data to work with.
+| `qs-scraper` | — | Polls `/health` every 15s, writes to `metrics-quantumstate` |
+| `qs-mcp-runner` | — | Polls `remediation-actions-quantumstate` every 0.5s, runs `docker restart` |
 
 #### Inject a fault
 
@@ -309,13 +267,11 @@ Use the TUI control panel:
 uv run python infra/control.py
 ```
 
-<img src="/images/TUI - No Error.png" width="700" alt="TUI - Startup" />
-
+<p align="center"><img src="images/TUI - No Error.png" width="580" alt="TUI - All services healthy" /></p>
 
 Press `1` to inject a memory leak into `payment-service`, `2` for an error spike into `auth-service`, `0` to reset everything.
 
-<img src="/images/TUI - Leak.png" width="700" alt="TUI showing active memory leak injection" />
-
+<p align="center"><img src="images/TUI - Leak.png" width="580" alt="TUI showing active memory leak injection" /></p>
 
 Or via curl:
 
@@ -327,7 +283,7 @@ curl -X POST http://localhost:8001/simulate/reset
 
 #### What actually happens
 
-When you inject a memory leak, `payment-service` allocates **4MB every 5 seconds** in real Python heap, not simulated. The scraper writes the rising readings to `metrics-quantumstate`. The container starts emitting error logs immediately on injection, then continues every 30 seconds as memory climbs:
+When you inject a memory leak, `payment-service` allocates **4MB every 5 seconds** in real Python heap. The scraper writes the rising readings to `metrics-quantumstate`. The container starts emitting error logs immediately:
 
 ```
 ERROR HEAP_PRESSURE: JVM heap elevated: 58%, connection pool under pressure
@@ -335,11 +291,7 @@ WARN GC_OVERHEAD: GC overhead limit approaching: 63% heap utilised
 CRITICAL OOM_IMMINENT: Out-of-memory condition imminent: 71% heap, GC unable to reclaim
 ```
 
-These are the logs Archaeologist finds and builds its evidence chain from.
-
-When Surgeon triggers remediation, the MCP Runner stops and restarts `payment-service`. The container is back up in 2–5 seconds. Memory drops back to baseline. The scraper writes the recovered readings. Guardian sees real recovery metrics.
-
-The whole loop, from memory climbing to detection, restart, and recovery, is observable in real infrastructure.
+These are the logs Archaeologist finds and builds its evidence chain from. When Surgeon triggers remediation, the MCP Runner restarts `payment-service` — memory drops back to baseline within seconds. Guardian sees real recovery metrics and closes the incident.
 
 #### Recommended trigger sequence
 
@@ -353,13 +305,13 @@ The whole loop, from memory climbing to detection, restart, and recovery, is obs
 
 ## Running the Pipeline
 
-### SRE Console
-
 Click **Run Pipeline** from the Console tab to invoke the full four-agent chain. Each agent's reasoning streams live as it runs. Toggle **Auto Pipeline** to run automatically on a schedule.
 
-<img src="/images/Pipeline Run - Resolved.png" width="700" alt="Pipeline Run - Resolved" />
+<p align="center"><img src="images/Pipeline Run - Monitoring.png" width="580" alt="Pipeline Run - Monitoring" /></p>
 
-### Simulation & Setup (For No Docker Setups)
+<p align="center"><img src="images/Pipeline Run - Resolved.png" width="580" alt="Pipeline Run - Resolved" /></p>
+
+### Simulation & Setup (No Docker)
 
 No Docker? The Simulation & Setup page lets you manage the full environment from the browser: create indices, seed data, inject synthetic anomalies, and run the MCP Runner in-process without any containers.
 
