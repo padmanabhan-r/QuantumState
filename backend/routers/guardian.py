@@ -124,14 +124,14 @@ def _find_incident(es, service: str, since_minutes: int = 60) -> dict | None:
 
 
 def _update_incident(es, incident_hit: dict, verdict: str, mttr_seconds: int,
-                     guardian_output: str) -> None:
+                     guardian_output: str, mttr_display: str = "") -> None:
     status = "RESOLVED" if verdict == "RESOLVED" else "ESCALATE"
     patch = {
         "resolution_status": status,
         "guardian_verified": True,
         "guardian_output":   guardian_output,
         "mttr_seconds":      mttr_seconds,
-        "mttr_estimate":     _fmt_mttr(mttr_seconds),
+        "mttr_estimate":     mttr_display or _fmt_mttr(mttr_seconds),
     }
     if status == "RESOLVED":
         patch["resolved_at"] = datetime.now(timezone.utc).isoformat()
@@ -219,7 +219,7 @@ def _run_guardian_agent(action: dict) -> dict:
             mttr_seconds = int((datetime.now(timezone.utc) - inc_ts).total_seconds())
         except Exception:
             pass
-        _update_incident(es, incident_hit, verdict, mttr_seconds, full_output)
+        _update_incident(es, incident_hit, verdict, mttr_seconds, full_output, mttr_raw)
         es.indices.refresh(index="incidents-quantumstate")
 
     # Audit trail
@@ -436,7 +436,7 @@ def stream_guardian(service: str):
                     mttr_seconds = int((datetime.now(timezone.utc) - inc_ts).total_seconds())
                 except Exception:
                     pass
-                _update_incident(es, incident_hit, verdict, mttr_seconds, full_output)
+                _update_incident(es, incident_hit, verdict, mttr_seconds, full_output, mttr_raw)
                 es.indices.refresh(index="incidents-quantumstate")
 
             exec_id = action.get("exec_id", "")
