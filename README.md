@@ -216,7 +216,7 @@ cd frontend && npm install && cd ..
 
 Once running, open `http://localhost:8080` → **Simulation & Setup → Run Setup**. This creates all 7 indices with their ELSER `semantic_text` field mappings and seeds 100 historical incidents and 8 runbooks in a single pass.
 
-<p align="center"><img src="images/Sim Control.png" width="580" alt="Simulation and Setup Control Panel" /></p>
+<p align="center"><img src="images/Sim Control.png" width="680" alt="Simulation and Setup Control Panel" /></p>
 
 ### Step 6: Create Agents and Tools
 
@@ -328,9 +328,9 @@ These are the logs Archaeologist finds and builds its evidence chain from. When 
 
 Click **Run Pipeline** from the Console tab to invoke the full four-agent chain. Each agent's reasoning streams live as it runs. Toggle **Auto Pipeline** to run automatically on a schedule.
 
-<p align="center"><img src="images/Pipeline Run - Monitoring.png" width="580" alt="Pipeline Run - Monitoring" /></p>
+<p align="center"><img src="images/Pipeline Run - Monitoring.png" width="680" alt="Pipeline Run - Monitoring" /></p>
 
-<p align="center"><img src="images/Pipeline Run - Resolved.png" width="580" alt="Pipeline Run - Resolved" /></p>
+<p align="center"><img src="images/Pipeline Run - Resolved.png" width="680" alt="Pipeline Run - Resolved" /></p>
 
 #### Simulation & Setup (No Docker)
 
