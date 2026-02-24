@@ -92,7 +92,7 @@ Surgeon doesn't directly touch infrastructure — that's the MCP Runner's job. I
 
 ## Architecture
 
-<p align="center"><img src="images/architecture-flow.gif" width="580" alt="Architecture Flow" /></p>
+<p align="center"><img src="images/architecture-flow.gif" width="680" alt="Architecture Flow" /></p>
 
 ```
 Elasticsearch (metrics + logs)
