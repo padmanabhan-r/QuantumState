@@ -102,6 +102,20 @@ def _fmt_mttr(seconds: int) -> str:
     return f"~{mins}m {secs}s" if secs else f"~{mins}m"
 
 
+def _parse_mttr_to_seconds(mttr_str: str) -> int:
+    """Parse Guardian agent MTTR string (e.g. '~4m 23s', '~12m', '~45s') to seconds."""
+    import re
+    s = mttr_str.strip().lstrip("~")
+    total = 0
+    m = re.search(r"(\d+)\s*m", s)
+    if m:
+        total += int(m.group(1)) * 60
+    s2 = re.search(r"(\d+)\s*s", s)
+    if s2:
+        total += int(s2.group(1))
+    return total
+
+
 def _find_incident(es, service: str, since_minutes: int = 60) -> dict | None:
     result = es.search(
         index="incidents-quantumstate*",
@@ -126,11 +140,15 @@ def _find_incident(es, service: str, since_minutes: int = 60) -> dict | None:
 def _update_incident(es, incident_hit: dict, verdict: str, mttr_seconds: int,
                      guardian_output: str, mttr_display: str = "") -> None:
     status = "RESOLVED" if verdict == "RESOLVED" else "ESCALATE"
+    # Prefer the Guardian agent's reported MTTR over the programmatic pipeline-start
+    # calculation — agent measures remediation-to-recovery, which is the meaningful value.
+    parsed = _parse_mttr_to_seconds(mttr_display) if mttr_display else 0
+    effective_seconds = parsed if parsed > 0 else mttr_seconds
     patch = {
         "resolution_status": status,
         "guardian_verified": True,
         "guardian_output":   guardian_output,
-        "mttr_seconds":      mttr_seconds,
+        "mttr_seconds":      effective_seconds,
         "mttr_estimate":     mttr_display or _fmt_mttr(mttr_seconds),
     }
     if status == "RESOLVED":
