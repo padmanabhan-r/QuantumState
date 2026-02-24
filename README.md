@@ -290,11 +290,11 @@ Use the TUI control panel:
 uv run python infra/control.py
 ```
 
-<p align="center"><img src="images/TUI - No Error.png" width="580" alt="TUI - All services healthy" /></p>
+<p align="center"><img src="images/TUI - No Error.png" width="680" alt="TUI - All services healthy" /></p>
 
 Press `1` to inject a memory leak into `payment-service`, `2` for an error spike into `auth-service`, `0` to reset everything.
 
-<p align="center"><img src="images/TUI - Leak.png" width="580" alt="TUI showing active memory leak injection" /></p>
+<p align="center"><img src="images/TUI - Leak.png" width="680" alt="TUI showing active memory leak injection" /></p>
 
 Or via curl:
 
