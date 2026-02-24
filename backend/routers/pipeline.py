@@ -351,6 +351,19 @@ Investigate the root cause. Run: search_error_logs, correlate_deployments, find_
 
 Return: service, anomaly_type, root_cause, evidence, recommended_action, historical_match, confidence, summary."""
 
+    # Warm up ELSER before Archaeologist runs — Serverless scales to 0 allocations
+    # when idle; the first call cold-starts (30-60s) and times out the tool.
+    # Sending a dummy inference request here wakes the model so find_similar_incidents
+    # hits a warm allocation.
+    try:
+        from elastic import get_es as _warm_es
+        _warm_es().inference.inference(
+            inference_id=".elser-2-elasticsearch",
+            body={"input": ["warmup"]},
+        )
+    except Exception:
+        pass  # non-fatal — Archaeologist will still run, just may be slower
+
     yield _event("agent_start", {"agent": "archaeologist", "label": "Archaeologist — Investigation"})
     full_response = ""
     for evt in converse_stream(AGENT_IDS["archaeologist"], arch_prompt):
