@@ -4,11 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.4.0] - 2026-02-18
+## [v1.0.0-beta] - 2026-02-24
 
-### ELSER Hybrid Search, Runbooks & Pipeline Hardening
+### First Beta Release
 
-v0.4.0 adds semantic search across historical incidents and runbooks via ELSER, hardens the detection and dedup logic, and eliminates race conditions in the pipeline.
+v1.0.0-beta is the first public beta of QuantumState. It brings ELSER-powered semantic search across incidents and runbooks, a fully hardened detection and dedup pipeline, auto-remediation reliability fixes, and consistent MTTR reporting — making the system demo-stable and ready for broader testing.
 
 ### Added
 
@@ -17,32 +17,35 @@ v0.4.0 adds semantic search across historical incidents and runbooks via ELSER, 
 - **`runbooks-quantumstate` index** — 8 runbooks covering memory leak, error spike, deployment regression, cache failure, and dependency restart scenarios; seeded via `python elastic-setup/seed_runbooks.py`
 - **`setup_elser.py`** — one-shot script to deploy the `.elser-2-elasticsearch` inference endpoint; idempotent, exits immediately if already deployed
 - **Pipeline race condition lock** — `threading.Lock` in `pipeline.py` prevents concurrent pipeline runs from both passing the dedup check before either writes a REMEDIATING incident, eliminating duplicate incidents and duplicate Kibana Cases
+- **Synthetic MCP Runner API** (`/api/sim/mcp-runner/status`, `/api/sim/mcp-runner/execute`) — in-process runner in `sim.py` mirrors `infra/mcp-runner/runner.py`; picks up pending remediation actions and writes recovery metrics without requiring Docker; enables full end-to-end demo on Elastic Cloud alone
+- **ELSER warm-up before Archaeologist** — pipeline sends a dummy inference request to `.elser-2-elasticsearch` immediately after Cassandra completes; prevents Serverless cold-start timeouts (ELSER scales to 0 allocations when idle, causing `find_similar_incidents` to time out on the first pipeline run after a quiet period)
 
 ### Changed
 
 - **Detection queries — 5-minute window** — `detect_memory_leak` and `detect_error_spike` now scan `NOW() - 5 minutes` using `MAX(value)` vs `AVG(value)`; eliminates AVG dilution that was delaying detection until near-saturation; catches leaks within ~3 minutes of injection
-- **Dedup logic — status-driven** — replaced 30-minute time-based dedup with status-driven logic: `REMEDIATING < 15 min` blocks (in-flight); `RESOLVED < 3 min` blocks (ghost cooldown); everything else allows through immediately — consecutive real incidents on the same service are never suppressed
-- **Surgeon — 1 Case per pipeline run** — Surgeon now remediates the single most critical service per run (highest confidence / most severe deviation); all other detected services are set to MONITORING and handled on the next run; eliminates Case spam when multiple anomalies coincide
+- **Dedup logic — status-driven with 15-minute cooldown** — replaced 30-minute time-based dedup with status-driven logic: `REMEDIATING < 15 min` blocks (in-flight); `RESOLVED < 15 min` blocks (cooldown, aligned with auto-pipeline interval); everything else allows through immediately
+- **Auto-pipeline interval** — default interval raised to 180s; minimum enforced at 15 minutes to match the resolved cooldown window and prevent redundant re-runs
+- **Surgeon — 1 remediation per pipeline run** — Surgeon remediates only the single most critical service per run; all other detected services are set to MONITORING and handled on the next run; eliminates Case spam when multiple anomalies coincide
 - **Cassandra prompt** — updated detection threshold to match live query: 65% peak, 5-minute window (was 70%, 30 minutes)
-- **Cassandra empty output guard** — pipeline now yields a descriptive `pipeline_complete` message and stops early when Cassandra returns empty output (no data in detection window or agent error) instead of hanging indefinitely
-- **Console — Chat panel removed** — "Chat with Agents" tab removed from SRE Console; use Kibana Agent Builder directly for per-agent chat
-- **Architecture section** — all 7 indices displayed in a single row; agent name pills enlarged; connector label updated to `ES|QL · ELSER · Tool Calls`
-- **Landing page** — ELSER hybrid search pill added to WhatIs section; Archaeologist and Surgeon step cards updated with ELSER tags; index counter updated to 7; "Simulation & Setup" nav button added alongside "Open Console"
-- **SimControl** — renamed to "Simulation & Setup"; Sim scenario cards collapsed behind a toggle by default; MCP runner status panel added (shows pending action count + recent action history with auto-poll); in-browser MCP one-shot and auto-run controls for setups without Docker
-- **`approval-requests-quantumstate`** — removed from index registry; replaced by `runbooks-quantumstate` (8 seeded runbooks, ELSER `semantic_text` field)
-- **`incidents-quantumstate` mapping** — added `incident_text` `semantic_text` field; `_write_incident()` now composes a rich natural-language summary at write time so ELSER can embed it immediately; historical seed incidents enriched with `incident_text` for semantic recall
-- **TUI control panel** — fixed recovery log: `_last_status` is now preserved during container offline/restarting period so the `degraded → healthy` transition correctly fires in the log after MCP runner restarts a container
-- **`agents-definition.md`** — Setup Order section added at top with ordered script sequence and note explaining why indices must exist before `setup_agents.py` runs; all tool queries updated to match live configuration
-- **README** — major rewrite: live demo link, MCP Runner architecture section, updated agent descriptions with ELSER context, Cloud trial setup guide; `HOW_IT_WORKS.md` and `data-model.md` removed (content consolidated into README and `agents-definition.md`)
-- **Images** — 6 screenshots added to `images/` covering agent list, pipeline flow, architecture diagram, and web UI
+- **Cassandra empty output guard** — pipeline yields a descriptive `pipeline_complete` message and stops early when Cassandra returns empty output instead of hanging
+- **MTTR display — Guardian and incident feed aligned** — Guardian was reporting its agent-calculated MTTR (~time from remediation to recovery) in the console but writing a longer programmatic value (pipeline start → Guardian completion) to the incident doc; both now use the Guardian agent's reported value; `mttr_seconds` is kept for stats aggregations
+- **MTTR baseline** — manual baseline standardised to 60 minutes everywhere (console strip and stats); 24-hour clock format on SRE console
+- **Architecture section** — all 7 indices in a single row; agent pills enlarged; connector label updated to `ES|QL · ELSER · Tool Calls`; animated architecture GIF regenerated at 2× resolution (1260px, 20fps)
+- **Landing page** — ELSER hybrid search pill added; Archaeologist and Surgeon step cards updated with ELSER tags; index counter updated to 7; "Simulation & Setup" nav button added
+- **SimControl** — renamed to "Simulation & Setup"; Sim scenario cards collapsed by default; MCP runner status panel added; in-browser MCP one-shot and auto-run controls for setups without Docker
+- **`incidents-quantumstate` mapping** — added `incident_text` `semantic_text` field; `_write_incident()` composes a rich natural-language summary so ELSER embeds it immediately; historical seed incidents enriched for semantic recall
+- **`approval-requests-quantumstate`** — removed from index registry; replaced by `runbooks-quantumstate`
+- **`agents-definition.md`** — Setup Order section added at top; all tool queries updated to match live configuration
+- **README** — major rewrite: live demo link, MCP Runner architecture section, updated agent descriptions with ELSER context, Cloud trial setup guide; `HOW_IT_WORKS.md` and `data-model.md` consolidated
 
-### Added (continued)
+### Fixed
 
-- **Synthetic MCP Runner API** (`/api/sim/mcp-runner/status`, `/api/sim/mcp-runner/execute`) — in-process runner in `sim.py` mirrors `infra/mcp-runner/runner.py`; picks up pending remediation actions and writes recovery metrics without requiring Docker; enables full end-to-end demo on Elastic Cloud alone
+- **ELSER `find_similar_incidents` timeouts on Serverless** — cold-start from 0 allocations caused the Archaeologist tool to time out before the model was ready; warm-up call now fires before Archaeologist runs
+- **MTTR mismatch** — incident feed showed ~2 minutes longer than Guardian console due to different measurement start points; now consistent
 
 ### Result
 
-**Semantic search closes the knowledge gap.** Archaeologist now finds incidents by meaning rather than keyword match. Surgeon retrieves the exact runbook for the failure mode rather than relying on hardcoded action mappings. Detection is consistent from the first minutes of fault injection rather than only at near-saturation.
+**The full autonomous loop is stable.** Cassandra detects within minutes of fault injection. Archaeologist finds semantically similar historical incidents rather than relying on keyword matches. Surgeon retrieves the correct runbook before acting. Guardian verifies recovery and closes the incident with a consistent MTTR. The system runs end-to-end on Elastic Cloud alone — no Docker required for demos.
 
 ---
 
